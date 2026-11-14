@@ -1,6 +1,7 @@
 import random
 from enum import Enum
 from random import randint
+from typing_extensions import Optional
 
 class GameState(Enum):
     LOBBY = 0
@@ -16,17 +17,17 @@ class Player:
         self.name = name
 
 class Game:
-    imposter = Player()
-    host = imposter
-    players = [imposter]
-    turn = 0
-    possiblePrompts = ["semi-colon"] #fill in later
-    possibleClues = ["punctuation"] #we love parallel lists wooo
-    promptIndex = -1
-    state = GameState.LOBBY
-    votes = {}
-    promptsGiven = 0
-    submittedTurns = []
+    imposter: Optional[Player] = None
+    host: Optional[Player] = imposter
+    players: list[Player] = []
+    turn: int = 0
+    possiblePrompts: list[str] = ["semi-colon"] #fill in later
+    possibleClues: list[str] = ["punctuation"] #we love parallel lists wooo
+    promptIndex: int = -1
+    state: GameState = GameState.LOBBY
+    votes: dict = {}
+    promptsGiven: int = 0
+    submittedTurns: list = []
 
     def __init__(self, name, colour):
         self.host = Player(name, colour)
