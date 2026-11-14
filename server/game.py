@@ -20,6 +20,7 @@ class Game:
     possibleClues = ["punctuation"] #we love parallel lists wooo
     promptIndex = -1
     state = GameState.LOBBY
+    votes = {}
 
     def __init__(self, players):
         self.players = players
@@ -51,3 +52,13 @@ class Game:
             self.state = GameState.PROMPT
         else:
             raise Exception("startGame method can only be called in the lobby")
+
+    def nextTurn(self):
+        self.turn = (self.turn+1)%len(self.players)
+
+    def voteFor(self, player):
+        if(self.state != GameState.VOTE):
+            raise Exception("Players may only vote during the voting round.")
+
+        if(player in self.votes):
+            player[]
