@@ -17,6 +17,26 @@
     <h1>Scrimposter</h1>
     <div id="app"></div>
     <script type="module">
+      import {draw} from './draw.js';
+      // Game Screens = "main_menu","lobby","draw","vote","results"
+      let state = {
+        players: [],
+        turn: 'John',
+        host: 'John',
+        image: new Image(),
+      };
+
+      let localState = {
+        name: 'John',
+      }
+
+      let player = {
+        name: 'John',
+        role: 'imposter',
+        isAlive: true,
+      }
+
+      draw(state, localState);
     </script>
 </body>
 </html>
