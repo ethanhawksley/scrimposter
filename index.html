@@ -26,6 +26,8 @@
         image: new Image(),
       };
 
+      state.image.src = 'https://hawksley.dev/blog/i-dont-like-passkeys/google-skip-password.png'
+
       let localState = {
         name: 'John',
       }
@@ -37,7 +39,7 @@
       }
 
       // For testing, immediately render the "draw" screen
-      draw(state, localState);
+      state.image.onload = () => {draw(state, localState)};
     </script>
 </body>
 </html>
