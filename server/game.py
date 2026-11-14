@@ -1,5 +1,12 @@
+import random
+from enum import Enum
 from random import randint
 
+class GameState(Enum):
+    LOBBY = 0
+    PROMPT = 1
+    DRAW = 2
+    VOTE = 3
 
 class Player:
     name = ""
@@ -12,17 +19,19 @@ class Game:
     possiblePrompts = ["semi-colon"] #fill in later
     possibleClues = ["punctuation"] #we love parallel lists wooo
     promptIndex = -1
+    state = GameState.LOBBY
 
-    def __init__(self, players, imposter):
+    def __init__(self, players):
         self.players = players
-        self.imposter = imposter
-        if(not (imposter in players)):
-            raise ValueError("The Impostor must be one of the players")
 
     def whoseTurn(self):
-        return self.players[self.turn].name
+        if(self.state != GameState.LOBBY):
+            return self.players[self.turn].name
+        raise Exception("whoseTurn may not be called while in the lobby")
 
     def givePrompt(self, player):
+        if(self.state != GameState.PROMPT):
+            raise Exception("givePrompt may not be called outside of PROMPT round")
         if(self.promptIndex == -1):
            self.promptIndex = randint(0, len(self.possiblePrompts)-1)
 
@@ -31,6 +40,14 @@ class Game:
         return self.possiblePrompts[self.promptIndex] #wooo
 
     def guessPrompt(self, guess):
-        if(guess == self.possiblePrompts[self.promptIndex]):
-            return True
-        return False
+        if(self.state == GameState.VOTE):
+            return guess == self.possiblePrompts[self.promptIndex]
+        else:
+            raise Exception("Impostor may not guess the prompt until after the vote has finished")
+
+    def startGame(self):
+        if (self.state == GameState.LOBBY):
+            self.imposter = random.choice(self.players)
+            self.state = GameState.PROMPT
+        else:
+            raise Exception("startGame method can only be called in the lobby")
