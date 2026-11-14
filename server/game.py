@@ -94,6 +94,11 @@ class Game:
         self.votes[name] = self.votes[name] + 1
 
     def joinGame(self, name, colour):
+
+        for i in self.players:
+            if(i.name==name or i.colour==colour):
+                raise Exception("Players must have unique names and colours")
+
         self.players.append(Player(name, colour))
 
     def leaveGame(self, name, colour):
