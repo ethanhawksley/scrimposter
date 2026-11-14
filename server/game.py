@@ -76,7 +76,7 @@ class Game:
         if(self.state != GameState.VOTE):
             raise Exception("Players may only vote during the voting round.")
 
-        if(name in self.votes):
+        if not (name in self.votes):
             self.votes[name] = 0
         self.votes[name] = self.votes[name] + 1
 
@@ -93,9 +93,11 @@ class Game:
         self.submittedTurns.append(imageString)
 
     def chooseColour(self, playerName, chosenColour):
+
         for i in self.players:
             if(i.name == playerName):
                 player = i
             elif(i.colour == chosenColour):
                 raise Exception("May not choose the same colour as another player")
 
+        player.colour = chosenColour
