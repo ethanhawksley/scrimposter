@@ -22,8 +22,8 @@ class Game:
     state = GameState.LOBBY
     votes = {}
 
-    def __init__(self, players):
-        self.players = players
+    def __init__(self, player):
+        self.players = [player]
 
     def whoseTurn(self):
         if(self.state != GameState.LOBBY):
@@ -63,3 +63,6 @@ class Game:
         if(player in self.votes):
             self.votes[player] = 0
         self.votes[player] = self.votes[player]+1
+
+    def joinGame(self, player):
+        self.players.append(player)
