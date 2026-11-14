@@ -49,7 +49,10 @@ def start_game(
 def get_turn(
     room_code: str
 ):
-    return {"turn": active_lobbies[room_code].whoseTurn()}
+    try:
+        return {"turn": active_lobbies[room_code].whoseTurn(), "message": f"Turn gathered"}
+    except:
+        return {"turn": "-1", "message": "Turn not available outside of a game"}
 
 @app.post("/games/{room_code}/turn")
 async def submit_turn(
@@ -89,9 +92,11 @@ def vote(
 # Utilities
 
 def generate_lobby_code() -> str:
-    out = ""
-    for i in range(6): out += str(randint(0,9))
-    return out
+    while True:
+        out = ""
+        for i in range(6): out += str(randint(0,9))
+        if out not in active_lobbies.keys():
+            return out
 
 def validate_room_code(room_code: str) -> bool:
     if len(room_code) != 6 or not room_code.isnumeric() or room_code not in active_lobbies.keys():
