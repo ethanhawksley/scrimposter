@@ -61,4 +61,5 @@ class Game:
             raise Exception("Players may only vote during the voting round.")
 
         if(player in self.votes):
-            player[]
+            self.votes[player] = 0
+        self.votes[player] = self.votes[player]+1
