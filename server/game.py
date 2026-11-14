@@ -27,6 +27,7 @@ class Game:
     state = GameState.LOBBY
     votes = {}
     promptsGiven = 0
+    submittedTurns = []
 
     def __init__(self, player):
         self.host = player
@@ -79,3 +80,11 @@ class Game:
 
     def joinGame(self, player):
         self.players.append(player)
+
+    def leaveGame(self, player):
+        self.players.remove(player)
+        if(self.host==player):
+            host = random.choice(self.players)
+
+    def submitTurn(self, imageString):
+        self.submittedTurns.append(imageString)
