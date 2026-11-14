@@ -20,22 +20,25 @@
       import {draw} from './draw.js';
       // Game Screens = "main_menu","lobby","draw","vote","results"
       let state = {
-        players: [],
+        players: [{
+          name: 'John',
+          colour: '#ff0000',
+          role: 'imposter',
+          isAlive: true,
+        }],
         turn: 'John',
         host: 'John',
         image: new Image(),
       };
 
-      state.image.src = 'https://hawksley.dev/blog/i-dont-like-passkeys/google-skip-password.png'
+      state.image.src = './smile.jpg'
 
       let localState = {
         name: 'John',
-      }
-
-      let player = {
-        name: 'John',
+        colour: '#ff0000',
         role: 'imposter',
         isAlive: true,
+        audioMuted: false,
       }
 
       // For testing, immediately render the "draw" screen
