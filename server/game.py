@@ -24,7 +24,7 @@ class Game:
 
     def givePrompt(self, player):
         if(self.promptIndex == -1):
-           promptIndex = randint(0, len(self.possiblePrompts)-1)
+           self.promptIndex = randint(0, len(self.possiblePrompts)-1)
 
         if(player == self.imposter):
             return self.possibleClues[self.promptIndex]
