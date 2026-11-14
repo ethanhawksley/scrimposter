@@ -16,9 +16,9 @@ def create_room(
     player_id: str,
     colour: int
 ):
-    code = generate_lobby_code()
-    active_lobbies[code] = Game(Player(player_id, colour)) # check constructor
-    return {"lobby_code": code, "message": "Lobby created"}
+    room_code = generate_lobby_code()
+    active_lobbies[room_code] = Game(player_id, colour)
+    return {"lobby_code": room_code, "message": "Lobby created"}
 
 @app.post("/rooms/{room_code}/join")
 def join_room(
@@ -26,8 +26,8 @@ def join_room(
     player_id: str,
     colour: int
 ):
-    active_lobbies[room_code].joinGame(Player(player_id, colour))  
-    return {"message": "Joined room {room_code}"}  
+    active_lobbies[room_code].joinGame(player_id, colour) 
+    return {"message": f"Joined room {room_code}"}
 
 # GAMES
 
@@ -36,7 +36,7 @@ def start_game(
     room_code: str,
     player_id: str
 ):
-    active_lobbies[room_code].startGame(player_id) # Probably ask 
+    active_lobbies[room_code].startGame(player_id)
     return {"message": "Game started"}
 
 @app.get("/games/{room_code}/turn")
@@ -52,10 +52,16 @@ async def submit_turn(
     image: str
 ):
     game = active_lobbies[room_code]
-    if game.whoseTurn == player_id:
+    if game.whoseTurn() == player_id:
         game.submitTurn(image)
         return {"message": "Turn submitted"}
     return {"message": "Turn not submitted"}
+
+@app.get("/games/{room_code}/info")
+def get_game_info(
+    room_code: str
+):
+    raise NotImplementedError("'get_game_info' no implemented")
 
 # MISC
 
@@ -72,7 +78,7 @@ def vote(
     target_id: str
 ):
     active_lobbies[room_code].voteFor(target_id)
-    return {"message": "Voted for {target_id}"}
+    return {"message": f"Voted for {target_id}"}
 
 # Utilities
 
