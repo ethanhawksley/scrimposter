@@ -62,7 +62,7 @@ class Game:
 
     def startGame(self, startedBy):
         if(startedBy != self.host.name):
-            raise Exception("Player with colour"+startedByName+" does not have permission to start the game")
+            raise Exception("Player with colour"+startedBy+" does not have permission to start the game")
         if (self.state == GameState.LOBBY):
             self.imposter = random.choice(self.players)
             self.state = GameState.PROMPT
