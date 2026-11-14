@@ -12,6 +12,10 @@ class Player:
     name = ""
     colour = 0
 
+    def __init__(self, name, colour):
+        self.name = name
+        self.colour = colour
+
 class Game:
     imposter = Player()
     players = [imposter]
