@@ -14,35 +14,45 @@
     <meta content="Scrimposter" property="og:description"/>
 </head>
 <body>
-    <h1>Scrimposter</h1>
-    <div id="app"></div>
-    <script type="module">
-      import {draw} from './draw.js';
-      // Game Screens = "main_menu","lobby","draw","vote","results"
-      let state = {
-        players: [{
-          name: 'John',
-          colour: '#ff0000',
-          role: 'imposter',
-          isAlive: true,
-        }],
-        turn: 'John',
-        host: 'John',
-        image: new Image(),
-      };
-
-      state.image.src = './smile.jpg'
-
-      let localState = {
+<h1>Scrimposter</h1>
+<div id="app"></div>
+<script type="module">
+  import {draw} from './draw.js';
+  // Game Screens = "main_menu","lobby","draw","vote","results"
+  let state = {
+    players: [
+      {
         name: 'John',
         colour: '#ff0000',
         role: 'imposter',
         isAlive: true,
-        audioMuted: false,
-      }
+      },
+      {
+        name: 'Mary',
+        colour: '#00ffff',
+        role: 'victim',
+        isAlive: true,
+      },
+    ],
+    turn: 'John',
+    host: 'John',
+    image: new Image(),
+  };
 
-      // For testing, immediately render the "draw" screen
-      state.image.onload = () => {draw(state, localState)};
-    </script>
+  state.image.src = './smile.jpg';
+
+  let localState = {
+    name: 'John',
+    colour: '#ff0000',
+    role: 'imposter',
+    isAlive: true,
+    audioMuted: false,
+  };
+
+  // For testing, immediately render the "draw" screen
+  state.image.onload = () => {
+    draw(state, localState);
+  };
+</script>
 </body>
 </html>

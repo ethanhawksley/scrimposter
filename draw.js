@@ -3,6 +3,7 @@ export function draw(state, localState) {
 
   const html = `
 <h2>${isTurn ? 'Your turn' : state.turn + '\'s turn'}</h2>
+<ol>${state.players.map(player => `<li style='color:${player.colour};${player.name === state.turn && 'text-decoration:underline;'}'>${player.name}</li>`).join('')}</ol>
 <canvas id="canvas" width="400" height="400"></canvas>
 ${isTurn && '<button id="finish-drawing">Finish Drawing</button>'}
   `;
@@ -17,19 +18,17 @@ ${isTurn && '<button id="finish-drawing">Finish Drawing</button>'}
   if (isTurn) {
     enableDrawing(state, localState, canvas, ctx);
     document.getElementById('finish-drawing').addEventListener('click', () => {
-      const pngUrl = canvas.toDataURL('image/png')
+      const pngUrl = canvas.toDataURL('image/png');
       console.log(pngUrl);
 
-      document.dispatchEvent(
-        new CustomEvent('drawer-finished'),
-      );
-    })
+      document.dispatchEvent(new CustomEvent('drawer-finished'),);
+    });
   }
 }
 
 function enableDrawing(state, localState, canvas, ctx) {
   ctx.strokeStyle = localState.colour;
-  ctx.lineJoin = "round";
+  ctx.lineJoin = 'round';
   ctx.lineWidth = 5;
 
   const clickX = [];
