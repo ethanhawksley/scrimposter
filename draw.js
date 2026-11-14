@@ -1,4 +1,6 @@
-export function draw(state, localState) {
+let url = "127.0.0.1:8000"
+
+export function draw(state, localState, roomCode, userID) {
   const isTurn = state.turn === localState.name;
 
   const html = `
@@ -17,11 +19,16 @@ ${isTurn && '<button id="finish-drawing">Finish Drawing</button>'}
 
   if (isTurn) {
     enableDrawing(state, localState, canvas, ctx);
-    document.getElementById('finish-drawing').addEventListener('click', () => {
+    document.getElementById('finish-drawing').addEventListener('click', async () => {
       const pngUrl = canvas.toDataURL('image/png');
-      console.log(pngUrl);
 
-      document.dispatchEvent(new CustomEvent('drawer-finished'),);
+      let response = await fetch(url + `/games/${roomCode}/turn`, {
+        method: "POST",
+        playerId: userID,
+        image: pngUrl,
+      })
+
+      console.log(pngUrl);
     });
   }
 }
