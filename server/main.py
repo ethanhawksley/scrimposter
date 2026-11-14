@@ -26,14 +26,14 @@ def join_room(
     player_id: str,
 ):
     if not validate_room_code(room_code):
-        return {"message": "Invalid room code"}
+        return {"message": "Invalid room code", "success": "False"}
     try:
         active_lobbies[room_code].joinGame(player_id) 
-        return {"message": f"Joined room {room_code}"}
+        return {"message": f"Joined room {room_code}", "success": "True"}
     except KeyError:
-        return {"message": f"{room_code} is not a valid room"}
+        return {"message": f"{room_code} is not a valid room", "success": "False"}
     except:
-        return {"message": "Name already in lobby"}
+        return {"message": "Name already in lobby", "success": "False"}
 
 # GAMES
 
