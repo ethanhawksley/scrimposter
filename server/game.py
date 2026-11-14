@@ -84,7 +84,7 @@ class Game:
     def leaveGame(self, player):
         self.players.remove(player)
         if(self.host==player):
-            host = random.choice(self.players)
+            self.host = random.choice(self.players)
 
     def submitTurn(self, imageString):
         self.submittedTurns.append(imageString)
