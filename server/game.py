@@ -10,11 +10,10 @@ class GameState(Enum):
 
 class Player:
     name = ""
-    colour = 0
+    colour = -1
 
     def __init__(self, name, colour):
         self.name = name
-        self.colour = colour
 
 class Game:
     imposter = Player()
@@ -29,16 +28,17 @@ class Game:
     promptsGiven = 0
     submittedTurns = []
 
-    def __init__(self, player):
-        self.host = player
-        self.players = [player]
+    def __init__(self, name, colour):
+        self.host = Player(name, colour)
+        self.players = [self.host]
 
     def whoseTurn(self):
         if(self.state != GameState.LOBBY):
             return self.players[self.turn].name
         raise Exception("whoseTurn may not be called while in the lobby")
 
-    def givePrompt(self, player):
+    def givePrompt(self, name):
+
         if(self.state != GameState.PROMPT):
             raise Exception("givePrompt may not be called outside of PROMPT round")
         if(self.promptIndex == -1):
@@ -48,19 +48,20 @@ class Game:
         if(self.promptsGiven>=len(self.players)):
             self.state = GameState.DRAW
 
-        if(player == self.imposter):
+        if(self.imposter.name == name):
             return self.possibleClues[self.promptIndex]
         return self.possiblePrompts[self.promptIndex] #wooo
 
     def guessPrompt(self, guess):
         if(self.state == GameState.VOTE):
+            self.state = GameState.LOBBY
             return guess == self.possiblePrompts[self.promptIndex]
         else:
             raise Exception("Impostor may not guess the prompt until after the vote has finished")
 
     def startGame(self, startedBy):
-        if(startedBy != self.host):
-            raise Exception("Player "+startedBy+" does not have permission to start the game")
+        if(startedBy != self.host.name):
+            raise Exception("Player with colour"+startedByName+" does not have permission to start the game")
         if (self.state == GameState.LOBBY):
             self.imposter = random.choice(self.players)
             self.state = GameState.PROMPT
@@ -70,21 +71,30 @@ class Game:
     def nextTurn(self):
         self.turn = (self.turn+1)%len(self.players)
 
-    def voteFor(self, player):
+    def voteFor(self, name):
         if(self.state != GameState.VOTE):
             raise Exception("Players may only vote during the voting round.")
 
-        if(player in self.votes):
-            self.votes[player] = 0
-        self.votes[player] = self.votes[player]+1
+        if(name in self.votes):
+            self.votes[name] = 0
+        self.votes[name] = self.votes[name] + 1
 
-    def joinGame(self, player):
-        self.players.append(player)
+    def joinGame(self, name, colour):
+        self.players.append(Player(name, colour))
 
-    def leaveGame(self, player):
+    def leaveGame(self, name, colour):
+        player = Player(name, colour)
         self.players.remove(player)
         if(self.host==player):
             self.host = random.choice(self.players)
 
     def submitTurn(self, imageString):
         self.submittedTurns.append(imageString)
+
+    def chooseColour(self, playerName, chosenColour):
+        for i in self.players:
+            if(i.name == playerName):
+                player = i
+            elif(i.colour == chosenColour):
+                raise Exception("May not choose the same colour as another player")
+
