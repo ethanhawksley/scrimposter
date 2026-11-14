@@ -64,7 +64,7 @@ class Game:
 
     def laterSummaries(self):
         whoseTurn = self.whoseTurn()
-        return {"whose turn":(whoseTurn.name, whoseTurn.colour), "latest image":self.submittedTurns[-1]}
+        return {"whose turn":whoseTurn, "latest image":self.submittedTurns[-1]}
 
     def guessPrompt(self, guess):
         if(self.state == GameState.VOTE):
@@ -91,7 +91,7 @@ class Game:
 
         if not (name in self.votes):
             self.votes[name] = 0
-        self.votes[name] = self.votes[name] + 1
+        self.votes[name] += 1
 
     def joinGame(self, name):
 
@@ -122,3 +122,15 @@ class Game:
 
         player.colour = chosenColour
 
+
+    def voteWinner(self):
+        if(self.state != GameState.VOTE):
+            raise Exception("voteWinner may not be called outside of voting")
+
+        winner = ("skip",-1)
+
+        for i, j in self.votes.items():
+            if j>winner[1]:
+                winner = (i,j)
+
+        return winner[0]
