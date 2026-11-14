@@ -12,8 +12,13 @@ class Player:
     name = ""
     colour = 0
 
+    def __init__(self, name, colour):
+        self.name = name
+        self.colour = colour
+
 class Game:
     imposter = Player()
+    host = imposter
     players = [imposter]
     turn = 0
     possiblePrompts = ["semi-colon"] #fill in later
@@ -21,8 +26,10 @@ class Game:
     promptIndex = -1
     state = GameState.LOBBY
     votes = {}
+    promptsGiven = 0
 
     def __init__(self, player):
+        self.host = player
         self.players = [player]
 
     def whoseTurn(self):
@@ -36,6 +43,10 @@ class Game:
         if(self.promptIndex == -1):
            self.promptIndex = randint(0, len(self.possiblePrompts)-1)
 
+        self.promptsGiven+=1
+        if(self.promptsGiven>=len(self.players)):
+            self.state = GameState.DRAW
+
         if(player == self.imposter):
             return self.possibleClues[self.promptIndex]
         return self.possiblePrompts[self.promptIndex] #wooo
@@ -46,7 +57,9 @@ class Game:
         else:
             raise Exception("Impostor may not guess the prompt until after the vote has finished")
 
-    def startGame(self):
+    def startGame(self, startedBy):
+        if(startedBy != self.host):
+            raise Exception("Player "+startedBy+" does not have permission to start the game")
         if (self.state == GameState.LOBBY):
             self.imposter = random.choice(self.players)
             self.state = GameState.PROMPT
