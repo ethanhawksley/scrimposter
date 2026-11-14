@@ -12,6 +12,7 @@ class GameState(Enum):
 class Player:
     name = ""
     colour = -1
+    roomCode = ""
 
     def __init__(self, name, colour):
         self.name = name
@@ -53,6 +54,18 @@ class Game:
             return self.possibleClues[self.promptIndex]
         return self.possiblePrompts[self.promptIndex] #wooo
 
+    def initialSummary(self):
+        playerTuples = []
+
+        for i in self.players:
+            playerTuples.append((i.name,i.colour))
+
+        return {"host":(self.host.name, self.host.colour), "players":playerTuples}
+
+    def laterSummaries(self):
+        whoseTurn = self.whoseTurn()
+        return {"whose turn":(whoseTurn.name, whoseTurn.colour), "latest image":self.submittedTurns[-1]}
+
     def guessPrompt(self, guess):
         if(self.state == GameState.VOTE):
             self.state = GameState.LOBBY
@@ -84,6 +97,8 @@ class Game:
         self.players.append(Player(name, colour))
 
     def leaveGame(self, name, colour):
+        if(self.state != GameState.LOBBY):
+            raise Exception("May not leave while the game is ongoing")
         player = Player(name, colour)
         self.players.remove(player)
         if(self.host==player):
@@ -101,3 +116,4 @@ class Game:
                 raise Exception("May not choose the same colour as another player")
 
         player.colour = chosenColour
+
