@@ -15,7 +15,7 @@ def create_game():
 async def submit_turn(
     game_id: str,
     player_id: str,
-    image: UploadFile = File(...)
+    image: str
 ):
     raise NotImplementedError("'submit_turn' not implemented!")
 
