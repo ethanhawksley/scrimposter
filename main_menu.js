@@ -65,6 +65,10 @@ function startGame() {
     sendCommand("start_game");
 }
 
+function toggleCodeVisibility() {
+    sendCommand("toggle_code_visibility");
+}
+
 function requestPrompt() {
     sendCommand("request_prompt");
 }
@@ -111,6 +115,7 @@ window.connectToRoom = connectToRoom;
 window.sendCommand = sendCommand;
 window.joinRoom = joinRoom;
 window.startGame = startGame;
+window.toggleCodeVisibility = toggleCodeVisibility;
 window.requestPrompt = requestPrompt;
 window.submitTurn = submitTurn;
 window.vote = vote;

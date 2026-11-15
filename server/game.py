@@ -8,6 +8,7 @@ class GameState(Enum):
     PROMPT = 1
     DRAW = 2
     VOTE = 3
+    RESULTS = 4
 
 class Player:
     def __init__(self, name, colour):
@@ -24,8 +25,12 @@ class Game:
         self.possibleClues = ["punctuation"]
         self.promptIndex = -1
         self.state = GameState.LOBBY
+        self.code_visible = False
         self.votes: dict[str, int] = {}
+        self.voted_players: set[str] = set()
+        self.result: Optional[dict[str, str]] = None
         self.promptsGiven = 0
+        self.round_submissions = 0
         self.submittedTurns: list[str] = []
 
     def whoseTurn(self):
@@ -67,6 +72,7 @@ class Game:
 
     def publicSummary(self):
         summary = self.initialSummary()
+        summary["code_visible"] = self.code_visible
         summary["state"] = self.state.name.lower()
         summary["turn"] = (
             self.whoseTurn() if self.state in (GameState.DRAW, GameState.VOTE) else None
@@ -74,7 +80,15 @@ class Game:
         summary["latest_image"] = (
             self.submittedTurns[-1] if self.submittedTurns else None
         )
+        summary["votes_received"] = len(self.voted_players)
+        summary["voted_players"] = list(self.voted_players)
+        summary["result"] = self.result
         return summary
+
+    def toggleCodeVisibility(self, player_name):
+        if player_name != self.host.name:
+            raise ValueError("Only the host may change lobby code visibility")
+        self.code_visible = not self.code_visible
 
     def guessPrompt(self, guess):
         if(self.state == GameState.VOTE):
@@ -88,6 +102,10 @@ class Game:
             raise ValueError("Only the host may start the game")
         if (self.state == GameState.LOBBY):
             self.imposter = random.choice(self.players)
+            self.votes.clear()
+            self.voted_players.clear()
+            self.result = None
+            self.round_submissions = 0
             self.state = GameState.PROMPT
         else:
             raise ValueError("startGame may only be called in the lobby")
@@ -95,13 +113,46 @@ class Game:
     def nextTurn(self):
         self.turn = (self.turn+1)%len(self.players)
 
-    def voteFor(self, name):
+    def voteFor(self, voter, name):
         if(self.state != GameState.VOTE):
             raise ValueError("Players may only vote during the voting round.")
+        if not any(player.name == voter for player in self.players):
+            raise ValueError("Only players in the game may vote")
+        if voter in self.voted_players:
+            raise ValueError("Each player may only vote once")
+        if name != "skip" and not any(player.name == name for player in self.players):
+            raise ValueError("Vote target is not in the game")
 
-        if not (name in self.votes):
-            self.votes[name] = 0
-        self.votes[name] += 1
+        self.votes[name] = self.votes.get(name, 0) + 1
+        self.voted_players.add(voter)
+        if len(self.voted_players) == len(self.players):
+            self.resolveVotes()
+
+    def resolveVotes(self):
+        highest_player_votes = max(
+            (votes for target, votes in self.votes.items() if target != "skip"),
+            default=0,
+        )
+        skip_votes = self.votes.get("skip", 0)
+        if skip_votes >= highest_player_votes:
+            self.state = GameState.DRAW
+            self.turn = 0
+            self.round_submissions = 0
+            self.votes.clear()
+            self.voted_players.clear()
+            self.result = None
+            return
+
+        accused = max(
+            (target for target in self.votes if target != "skip"),
+            key=self.votes.__getitem__,
+        )
+        self.state = GameState.RESULTS
+        self.result = {
+            "accused": accused,
+            "imposter": self.imposter.name if self.imposter else "",
+            "correct": str(accused == self.imposter.name).lower(),
+        }
 
     def joinGame(self, name):
 
@@ -127,7 +178,8 @@ class Game:
         if self.state != GameState.DRAW or player_id != self.whoseTurn():
             raise ValueError("Only the current player may submit a drawing")
         self.submittedTurns.append(imageString)
-        if len(self.submittedTurns) >= len(self.players):
+        self.round_submissions += 1
+        if self.round_submissions >= len(self.players):
             self.state = GameState.VOTE
         else:
             self.nextTurn()

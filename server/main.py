@@ -115,7 +115,7 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
 
     connections[room_code][player_id].add(websocket)
     await send_event(websocket, "connection_ready", {"room_code": room_code})
-    await send_snapshot(websocket, game, player_id)
+    await send_snapshot(websocket, game, player_id, room_code)
 
     try:
         while True:
@@ -151,6 +151,8 @@ async def handle_command(
         try:
             if command == "join_room":
                 game.joinGame(player_id)
+            elif command == "toggle_code_visibility":
+                game.toggleCodeVisibility(player_id)
             elif command == "start_game":
                 game.startGame(player_id)
             elif command == "request_prompt":
@@ -167,7 +169,7 @@ async def handle_command(
                 target = payload.get("target")
                 if not isinstance(target, str):
                     raise ValueError("target must be a player name")
-                game.voteFor(target)
+                game.voteFor(player_id, target)
             else:
                 await send_error(websocket, "unknown_command", command)
                 return
@@ -178,11 +180,15 @@ async def handle_command(
         await broadcast_snapshot(room_code, game)
 
 
-async def send_snapshot(websocket: WebSocket, game: Game, player_id: str):
+async def send_snapshot(
+    websocket: WebSocket, game: Game, player_id: str, room_code: str
+):
+    summary = game.publicSummary()
+    summary["room_code"] = room_code
     await send_event(websocket, "state", {
         "player_id": player_id,
         "sequence": 0,
-        "game": game.publicSummary(),
+        "game": summary,
     })
 
 
@@ -194,10 +200,12 @@ async def broadcast_snapshot(room_code: str, game: Game):
         for socket in player_sockets
     ]
     for socket in recipients:
+        summary = game.publicSummary()
+        summary["room_code"] = room_code
         await send_event(socket, "state", {
             "player_id": "",
             "sequence": room_sequences[room_code],
-            "game": game.publicSummary(),
+            "game": summary,
         })
 
 
