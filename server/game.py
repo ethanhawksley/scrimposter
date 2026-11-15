@@ -12,11 +12,13 @@ class GameState(Enum):
     IMPOSTER_GUESS = 5
 
 class Player:
-    def __init__(self, name, colour):
+    def __init__(self, name, colour, max_ink):
         self.name = name
         self.colour = colour
+        self.ink_remaining = max_ink
 
 class Game:
+    MAX_INK = 2000
     COLOUR_PALETTE = (
         "#e74c3c",
         "#3498db",
@@ -34,7 +36,7 @@ class Game:
 
     def __init__(self, name, colour):
         self.players = []
-        self.host = Player(name, self._new_colour())
+        self.host = Player(name, self._new_colour(), self.MAX_INK)
         self.players.append(self.host)
         self.imposter: Optional[Player] = None
         self.turn = 0
@@ -87,7 +89,12 @@ class Game:
         return {
             "host": self.host.name,
             "players": [
-                {"name": player.name, "colour": player.colour}
+                {
+                    "name": player.name,
+                    "colour": player.colour,
+                    "ink_remaining": player.ink_remaining,
+                    "max_ink": self.MAX_INK,
+                }
                 for player in self.players
             ],
         }
@@ -150,6 +157,7 @@ class Game:
             self.promptIndex = -1
             self.promptsGiven = 0
             self.returned_players.clear()
+            self.resetInk()
             self.state = GameState.PROMPT
         else:
             raise ValueError("startGame may only be called in the lobby")
@@ -186,6 +194,7 @@ class Game:
             self.votes.clear()
             self.voted_players.clear()
             self.result = None
+            self.resetInk()
             return
 
         accused = max(
@@ -213,7 +222,11 @@ class Game:
             if(i.name==name):
                 raise Exception("Players must have unique names and colours")
 
-        self.players.append(Player(name, self._new_colour()))
+        self.players.append(Player(name, self._new_colour(), self.MAX_INK))
+
+    def resetInk(self):
+        for player in self.players:
+            player.ink_remaining = self.MAX_INK
 
     def _new_colour(self):
         used_colours = {player.colour for player in self.players}
@@ -245,9 +258,15 @@ class Game:
         if self.returned_players == {player.name for player in self.players}:
             self.returnToLobby()
 
-    def submitTurn(self, player_id: str, imageString: str):
+    def submitTurn(self, player_id: str, imageString: str, ink_used: int):
         if self.state != GameState.DRAW or player_id != self.whoseTurn():
             raise ValueError("Only the current player may submit a drawing")
+        if not isinstance(ink_used, int) or ink_used < 0:
+            raise ValueError("ink_used must be a non-negative integer")
+        if ink_used > self.MAX_INK:
+            raise ValueError("drawing exceeded the ink limit")
+        player = next(player for player in self.players if player.name == player_id)
+        player.ink_remaining = self.MAX_INK - ink_used
         self.submittedTurns.append(imageString)
         self.round_submissions += 1
         if self.round_submissions >= len(self.players):
@@ -293,5 +312,6 @@ class Game:
         self.result = None
         self.turn = 0
         self.returned_players.clear()
+        self.resetInk()
         for player in self.players:
             player.colour = self._new_colour()

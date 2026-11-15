@@ -173,7 +173,8 @@ async def handle_command(
                     raise ValueError("image must be a data URL")
                 if len(image) > 2_000_000:
                     raise ValueError("image is too large")
-                game.submitTurn(player_id, image)
+                ink_used = payload.get("ink_used")
+                game.submitTurn(player_id, image, ink_used)
             elif command == "vote":
                 target = payload.get("target")
                 if not isinstance(target, str):

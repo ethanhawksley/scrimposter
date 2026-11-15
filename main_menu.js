@@ -78,7 +78,7 @@ function requestPrompt() {
 }
 
 function submitTurn(image) {
-    sendCommand("submit_turn", { image });
+    sendCommand("submit_turn", { image, ink_used: window.currentInkUsed?.() ?? 0 });
 }
 
 function vote(target) {

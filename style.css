@@ -17,6 +17,24 @@
   width: 100%;
 }
 
+.drawing-area {
+  align-items: flex-start;
+  display: flex;
+  gap: 1rem;
+}
+
+.ink-panel {
+  min-width: 10rem;
+}
+
+.ink-player {
+  margin-bottom: 0.75rem;
+}
+
+.ink-player .progress {
+  margin: 0.25rem 0;
+}
+
 .game-modal .modal-dialog {
   align-items: center;
   display: flex;
