@@ -209,24 +209,10 @@ body {
   max-width: 460px;
 }
 
-.menu-divider {
-  align-items: center;
-  color: var(--ink-muted);
-  display: flex;
-  font-size: 0.8rem;
-  font-weight: 700;
-  gap: 0.75rem;
-  letter-spacing: 0.04em;
-  margin: 1.15rem 0;
-  text-transform: uppercase;
-}
-
-.menu-divider::before,
-.menu-divider::after {
-  background: var(--border-soft);
-  content: "";
-  flex: 1;
-  height: 1.5px;
+.menu-host-row {
+  border-top: 1.5px solid var(--border-soft);
+  margin-top: 1.15rem;
+  padding-top: 1.15rem;
 }
 
 .join-row {

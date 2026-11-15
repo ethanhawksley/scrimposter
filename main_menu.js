@@ -33,11 +33,42 @@ function restoreSavedNickname() {
     }
 }
 
+function applyInviteCodeFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const rawCode = (params.get("code") ?? "").trim();
+    if (!/^\d{6}$/.test(rawCode)) {
+        return;
+    }
+    const codeEl = document.getElementById("codeText");
+    if (codeEl) {
+        codeEl.value = rawCode;
+    }
+    const nameEl = document.getElementById("nameText");
+    if (nameEl && !nameEl.value) {
+        nameEl.focus();
+    } else {
+        document.getElementById("joinRoomBtn")?.focus();
+    }
+}
+
+function clearInviteParamFromUrl() {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("code")) {
+        url.searchParams.delete("code");
+        window.history.replaceState({}, "", url.toString());
+    }
+}
+
+function initMenuInputs() {
+    restoreSavedNickname();
+    applyInviteCodeFromUrl();
+}
+
 if (typeof document !== "undefined") {
     if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", restoreSavedNickname);
+        document.addEventListener("DOMContentLoaded", initMenuInputs);
     } else {
-        restoreSavedNickname();
+        initMenuInputs();
     }
 }
 
@@ -243,6 +274,7 @@ async function createRoom(rawName) {
         nameEl.value = name;
     }
     saveNickname(name);
+    clearInviteParamFromUrl();
     if (createBtn) {
         createBtn.disabled = true;
     }
@@ -291,4 +323,5 @@ window.returnToLobby = returnToLobby;
 window.returnToMainMenu = returnToMainMenu;
 window.finishLeavingGame = finishLeavingGame;
 window.isLeavingGame = () => leavingGame;
+window.clearInviteParamFromUrl = clearInviteParamFromUrl;
 window.getCurrentPlayer = () => currentPlayer;

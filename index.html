@@ -39,11 +39,15 @@
           <label class="field-label" for="nameText">Nickname</label>
           <input class="input-ink" id="nameText" type="text" maxlength="24" autocomplete="off" data-form-type="other" placeholder="Your name" />
         </div>
-        <button type="button" id="createRoomBtn" class="btn-ink btn-ink-primary btn-full">Create Room</button>
-        <div class="menu-divider"><span>or join with a code</span></div>
-        <div class="join-row">
-          <input class="input-ink input-code" id="codeText" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000" aria-label="6-digit room code" />
-          <button type="button" id="joinRoomBtn" class="btn-ink btn-ink-secondary">Join Room</button>
+        <div class="field-group">
+          <label class="field-label" for="codeText">Room code</label>
+          <div class="join-row">
+            <input class="input-ink input-code" id="codeText" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000" aria-label="6-digit room code" />
+            <button type="button" id="joinRoomBtn" class="btn-ink btn-ink-primary">Join Room</button>
+          </div>
+        </div>
+        <div class="menu-host-row">
+          <button type="button" id="createRoomBtn" class="btn-ink btn-ink-secondary btn-full">Create Room</button>
         </div>
         <p id="connectionStatus" class="status-banner" role="status" aria-live="polite"></p>
       </div>
@@ -109,6 +113,7 @@
         statusEl.classList.remove("is-info");
       }
       document.getElementById("menu").hidden = true;
+      window.clearInviteParamFromUrl?.();
       const localName = window.getCurrentPlayer?.() || nameInput.value.trim();
       const player = state.players.find((candidate) => candidate.name === localName);
       if (state.state !== "lobby" && !promptRequested) {

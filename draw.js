@@ -97,12 +97,32 @@ function renderLobbyView(state, localState) {
 
   const codeActionsEl = document.getElementById("lobby-code-actions");
   if (codeActionsEl) {
-    if (!codeActionsEl.querySelector("#copy-code")) {
-      codeActionsEl.innerHTML = `<button type="button" id="copy-code" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Code</button>`;
+    if (!codeActionsEl.querySelector("#copy-link")) {
+      codeActionsEl.innerHTML = `
+        <button type="button" id="copy-link" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Link</button>
+        <button type="button" id="copy-code" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Code</button>
+      `;
+      document.getElementById("copy-link")?.addEventListener("click", async () => {
+        const btn = document.getElementById("copy-link");
+        const code = document.getElementById("lobby-code-digits")?.dataset.code ?? "";
+        try {
+          const url = new URL(window.location.href);
+          url.search = "";
+          url.hash = "";
+          if (code) url.searchParams.set("code", code);
+          await copyText(url.toString());
+          if (btn) {
+            btn.textContent = "Copied";
+            setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy Link"; }, 1400);
+          }
+        } catch {
+          if (btn) btn.textContent = "Copy failed";
+        }
+      });
       document.getElementById("copy-code")?.addEventListener("click", async () => {
         const btn = document.getElementById("copy-code");
         try {
-          await navigator.clipboard?.writeText(document.getElementById("lobby-code-digits")?.dataset.code ?? "");
+          await copyText(document.getElementById("lobby-code-digits")?.dataset.code ?? "");
           if (btn) {
             btn.textContent = "Copied";
             setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy Code"; }, 1400);
@@ -540,6 +560,23 @@ function updatePlayersInkPanel(state, localState) {
       </div>
     `;
   }).join("");
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const area = document.createElement("textarea");
+  area.value = text;
+  area.setAttribute("readonly", "");
+  area.style.position = "fixed";
+  area.style.opacity = "0";
+  document.body.appendChild(area);
+  area.select();
+  const ok = document.execCommand("copy");
+  area.remove();
+  if (!ok) throw new Error("Copy failed");
 }
 
 export function escapeHtml(value) {
