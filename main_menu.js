@@ -71,6 +71,12 @@ function vote(target) {
     sendCommand("vote", { target });
 }
 
+function CodeEnter() {
+    let code = document.getElementById('codeText').innerText
+    let name = document.getElementById('nameText').innerText
+    connectToRoom(code, name, )
+}
+
 window.connectToRoom = connectToRoom;
 window.sendCommand = sendCommand;
 window.joinRoom = joinRoom;
