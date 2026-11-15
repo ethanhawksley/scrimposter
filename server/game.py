@@ -17,9 +17,25 @@ class Player:
         self.colour = colour
 
 class Game:
+    COLOUR_PALETTE = (
+        "#e74c3c",
+        "#3498db",
+        "#2ecc71",
+        "#f1c40f",
+        "#9b59b6",
+        "#e67e22",
+        "#1abc9c",
+        "#e84393",
+        "#00cec9",
+        "#6c5ce7",
+        "#d35400",
+        "#2d3436",
+    )
+
     def __init__(self, name, colour):
-        self.host = Player(name, colour)
-        self.players = [self.host]
+        self.players = []
+        self.host = Player(name, self._new_colour())
+        self.players.append(self.host)
         self.imposter: Optional[Player] = None
         self.turn = 0
         self.possiblePrompts = ["A lighthouse"]
@@ -197,7 +213,16 @@ class Game:
             if(i.name==name):
                 raise Exception("Players must have unique names and colours")
 
-        self.players.append(Player(name, -1))
+        self.players.append(Player(name, self._new_colour()))
+
+    def _new_colour(self):
+        used_colours = {player.colour for player in self.players}
+        available_colours = [
+            colour for colour in self.COLOUR_PALETTE if colour not in used_colours
+        ]
+        if available_colours:
+            return random.choice(available_colours)
+        return f"#{random.randint(0, 0xFFFFFF):06x}"
 
     def leaveGame(self, name, colour=None):
         player = next((player for player in self.players if player.name == name), None)
@@ -268,3 +293,5 @@ class Game:
         self.result = None
         self.turn = 0
         self.returned_players.clear()
+        for player in self.players:
+            player.colour = self._new_colour()
