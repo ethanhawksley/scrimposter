@@ -53,11 +53,16 @@ function setConnectionStatus(message, isInfo = false) {
 function getBackendLocation() {
     const isFile = window.location.protocol === "file:";
     const hostname = isFile ? "127.0.0.1" : window.location.hostname;
-    const developmentHost = isFile || ["0.0.0.0", "127.0.0.1", "localhost", ""].includes(hostname);
-    const resolvedHost = developmentHost
+    const isLocalHost = isFile
+        || ["0.0.0.0", "127.0.0.1", "localhost", ""].includes(hostname)
+        || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)
+        || hostname.endsWith(".local");
+    const port = window.location.port;
+    const useDevPort = isFile || (isLocalHost && port !== "8000");
+    const resolvedHost = useDevPort
         ? `${hostname === "0.0.0.0" || hostname === "" ? "127.0.0.1" : hostname}:8000`
         : window.location.host;
-    const httpBase = developmentHost ? `http://${resolvedHost}` : window.location.origin;
+    const httpBase = useDevPort ? `http://${resolvedHost}` : window.location.origin;
     const wsProtocol = !isFile && window.location.protocol === "https:" ? "wss:" : "ws:";
     return { httpBase, wsBase: `${wsProtocol}//${resolvedHost}` };
 }

@@ -6,6 +6,12 @@ Every player is shown a word except the imposter. The players must deduce who th
 
 The players win if they deduce who the imposter is without them guessing what the word prompt was. The imposter must go undetected or work out the word.
 
+## Running
+```bash
+uv run --project server python server/main.py
+```
+Open `http://127.0.0.1:8000/` in your browser.
+
 ## Implementation
 Frontend:
 - HTML
@@ -26,7 +32,7 @@ Commands use this shape:
 
 ```json
 {"type": "start_game", "payload": {}}
-{"type": "submit_turn", "payload": {"image": "data:image/png;base64,..."}}
+{"type": "submit_turn", "payload": {"image": "data:image/png;base64,...", "ink_used": 420}}
 {"type": "vote", "payload": {"target": "player name"}}
 ```
 

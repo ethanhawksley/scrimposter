@@ -76,7 +76,11 @@
     nameInput?.addEventListener("keydown", (event) => {
       if (event.key === "Enter") {
         event.preventDefault();
-        createRoom(nameInput.value);
+        if (/^\d{6}$/.test(codeInput?.value.trim() ?? "")) {
+          CodeEnter();
+        } else {
+          createRoom(nameInput.value);
+        }
       }
     });
     roleDialog?.addEventListener("click", (event) => {
@@ -107,8 +111,11 @@
       document.getElementById("menu").hidden = true;
       const localName = window.getCurrentPlayer?.() || nameInput.value.trim();
       const player = state.players.find((candidate) => candidate.name === localName);
-      if (state.state === "prompt" && !promptRequested) {
+      if (state.state !== "lobby" && !promptRequested) {
         promptRequested = true;
+        if (state.state !== "prompt") {
+          introShown = true;
+        }
         requestPrompt();
       } else if (state.state === "lobby") {
         promptRequested = false;
@@ -130,6 +137,7 @@
         const gameBanner = document.getElementById("game-error-banner");
         const statusEl = document.getElementById("connectionStatus");
         if (gameBanner && document.getElementById("menu")?.hidden) {
+          gameBanner.classList.remove("is-info");
           gameBanner.textContent = msgText;
           gameBanner.hidden = false;
         } else if (statusEl) {
@@ -139,6 +147,7 @@
         document.querySelectorAll("[data-lock-on-submit]").forEach((btn) => {
           btn.disabled = false;
         });
+        window.recoverPendingControls?.();
         if (window.isLeavingGame?.()) {
           window.finishLeavingGame();
         }

@@ -1,17 +1,34 @@
 import asyncio
+import sys
 from collections import defaultdict
+from pathlib import Path
+from random import randint
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from game import Game
-from random import randint
+from fastapi.responses import FileResponse, JSONResponse
+
+SERVER_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SERVER_DIR.parent
+if str(SERVER_DIR) not in sys.path:
+    sys.path.insert(0, str(SERVER_DIR))
+from game import Game, GameState
+
+FRONTEND_FILES = {
+    "index.html": "text/html; charset=utf-8",
+    "style.css": "text/css; charset=utf-8",
+    "draw.js": "application/javascript; charset=utf-8",
+    "main_menu.js": "application/javascript; charset=utf-8",
+}
+DISCONNECT_GRACE_SECONDS = 12
 
 app = FastAPI()
 active_lobbies: dict[str, Game] = {}
 connections: dict[str, dict[str, set[WebSocket]]] = defaultdict(lambda: defaultdict(set))
 room_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 room_sequences: dict[str, int] = defaultdict(int)
+pending_leaves: dict[tuple[str, str], asyncio.Task] = {}
 
 app.add_middleware(
     CORSMiddleware,
@@ -23,6 +40,13 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
+    index_path = ROOT_DIR / "index.html"
+    if index_path.is_file():
+        return FileResponse(index_path, media_type="text/html; charset=utf-8")
+    return {"Game Server": "Running"}
+
+@app.get("/health")
+def health_check():
     return {"Game Server": "Running"}
 
 # ROOMS
@@ -30,7 +54,7 @@ def read_root():
 @app.post("/rooms")
 def create_room(
     player_id: str,
-    colour: int
+    colour: int = 1
 ):
     room_code = generate_lobby_code()
     active_lobbies[room_code] = Game(player_id, colour)
@@ -48,8 +72,8 @@ def join_room(
         return {"message": f"Joined room {room_code}", "success": "True"}
     except KeyError:
         return {"message": f"{room_code} is not a valid room", "success": "False"}
-    except:
-        return {"message": "Name already in lobby", "success": "False"}
+    except Exception as error:
+        return {"message": str(error), "success": "False"}
 
 # GAMES
 
@@ -74,17 +98,12 @@ def get_turn(
 async def submit_turn(
     room_code: str,
     player_id: str,
-    image: str
+    image: str,
+    ink_used: int = 0,
 ):
     game = active_lobbies[room_code]
-    game.submitTurn(player_id, image)
+    game.submitTurn(player_id, image, ink_used)
     return {"message": "Turn submitted"}
-
-@app.get("/games/{room_code}/info")
-def get_game_info(
-    room_code: str
-):
-    raise NotImplementedError("'get_game_info' no implemented")
 
 # MISC
 
@@ -98,9 +117,10 @@ def get_prompt(
 @app.post("/games/{room_code}/vote")
 def vote(
     room_code: str,
+    player_id: str,
     target_id: str
 ):
-    active_lobbies[room_code].voteFor(target_id)
+    active_lobbies[room_code].voteFor(player_id, target_id)
     return {"message": f"Voted for {target_id}"}
 
 
@@ -113,6 +133,10 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
         await websocket.close(code=1008)
         return
 
+    pending = pending_leaves.pop((room_code, player_id), None)
+    if pending:
+        pending.cancel()
+
     connections[room_code][player_id].add(websocket)
     await send_event(websocket, "connection_ready", {"room_code": room_code})
     await send_snapshot(websocket, game, player_id, room_code)
@@ -122,20 +146,28 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
             message = await websocket.receive_json()
             await handle_command(room_code, player_id, websocket, message)
     except WebSocketDisconnect:
-        should_broadcast = False
         async with room_locks[room_code]:
             connections[room_code][player_id].discard(websocket)
-            if not connections[room_code][player_id]:
+            still_connected = bool(connections[room_code][player_id])
+            if not still_connected:
                 del connections[room_code][player_id]
-                if player_id in {player.name for player in game.players}:
-                    game.leaveGame(player_id)
-                    should_broadcast = True
             if not connections[room_code]:
                 del connections[room_code]
-            if not game.players:
-                active_lobbies.pop(room_code, None)
-            elif should_broadcast:
-                await broadcast_snapshot(room_code, game)
+            if not still_connected and player_id in {player.name for player in game.players}:
+                if game.state == GameState.LOBBY:
+                    game.leaveGame(player_id)
+                    if not game.players:
+                        active_lobbies.pop(room_code, None)
+                    else:
+                        await broadcast_snapshot(room_code, game)
+                else:
+                    key = (room_code, player_id)
+                    old = pending_leaves.pop(key, None)
+                    if old:
+                        old.cancel()
+                    pending_leaves[key] = asyncio.create_task(
+                        delayed_leave(room_code, player_id, game)
+                    )
 
 
 async def handle_command(
@@ -188,6 +220,9 @@ async def handle_command(
             elif command == "return_lobby":
                 game.returnPlayerToLobby(player_id)
             elif command == "leave_game":
+                pending = pending_leaves.pop((room_code, player_id), None)
+                if pending:
+                    pending.cancel()
                 game.leaveGame(player_id)
             else:
                 await send_error(websocket, "unknown_command", command)
@@ -215,22 +250,41 @@ async def send_snapshot(
     })
 
 
+async def delayed_leave(room_code: str, player_id: str, target_game: Game):
+    try:
+        await asyncio.sleep(DISCONNECT_GRACE_SECONDS)
+        async with room_locks[room_code]:
+            pending_leaves.pop((room_code, player_id), None)
+            game = active_lobbies.get(room_code)
+            if game is not target_game:
+                return
+            if connections.get(room_code, {}).get(player_id):
+                return
+            if player_id in {player.name for player in game.players}:
+                game.leaveGame(player_id)
+            if not game.players:
+                active_lobbies.pop(room_code, None)
+            else:
+                await broadcast_snapshot(room_code, game)
+    except asyncio.CancelledError:
+        return
+
+
 async def broadcast_snapshot(room_code: str, game: Game):
     room_sequences[room_code] += 1
-    recipients = [
-        socket
-        for player_sockets in connections[room_code].values()
-        for socket in player_sockets
-    ]
-    for player_id, player_sockets in connections[room_code].items():
+    seq = room_sequences[room_code]
+    for player_id, player_sockets in list(connections.get(room_code, {}).items()):
         summary = game.publicSummary(player_id)
         summary["room_code"] = room_code
-        for socket in player_sockets:
-            await send_event(socket, "state", {
-                "player_id": player_id,
-                "sequence": room_sequences[room_code],
-                "game": summary,
-            })
+        for socket in list(player_sockets):
+            try:
+                await send_event(socket, "state", {
+                    "player_id": player_id,
+                    "sequence": seq,
+                    "game": summary,
+                })
+            except Exception:
+                player_sockets.discard(socket)
 
 
 async def send_event(websocket: WebSocket, event_type: str, payload: dict):
@@ -254,5 +308,16 @@ def validate_room_code(room_code: str) -> bool:
         return False
     return True
 
+@app.get("/{asset_name}")
+def serve_frontend_asset(asset_name: str):
+    media_type = FRONTEND_FILES.get(asset_name)
+    if not media_type:
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    asset_path = ROOT_DIR / asset_name
+    if not asset_path.is_file():
+        return JSONResponse({"detail": "Not found"}, status_code=404)
+    return FileResponse(asset_path, media_type=media_type)
+
 if __name__ == "__main__":
-    for i in range(10): print(generate_lobby_code())
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

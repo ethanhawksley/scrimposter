@@ -17,14 +17,22 @@ export function resetView() {
   lastBriefingKey = null;
   drawingController = null;
   window.currentInkUsed = () => 0;
+  window.recoverPendingControls = null;
 }
 
 export function draw(state, localState) {
   renderHeaderActions();
   const errBanner = document.getElementById("game-error-banner");
   if (errBanner) {
-    errBanner.hidden = true;
-    errBanner.textContent = "";
+    if (state.status_note && state.state === "draw") {
+      errBanner.textContent = state.status_note;
+      errBanner.classList.add("is-info");
+      errBanner.hidden = false;
+    } else {
+      errBanner.hidden = true;
+      errBanner.textContent = "";
+      errBanner.classList.remove("is-info");
+    }
   }
 
   if (state.state === "lobby") {
@@ -122,8 +130,9 @@ function renderLobbyView(state, localState) {
 
   const startActionsEl = document.getElementById("lobby-start-actions");
   if (startActionsEl) {
+    const enoughPlayers = state.players.length >= 3;
     startActionsEl.innerHTML = isHost && canControlLobby
-      ? `<button type="button" id="start-game" class="btn-ink btn-ink-primary btn-full" data-lock-on-submit>Start Game</button>`
+      ? `<button type="button" id="start-game" class="btn-ink btn-ink-primary btn-full" data-lock-on-submit ${enoughPlayers ? "" : "disabled"}>${enoughPlayers ? "Start Game" : "Start Game (3+ players)"}</button>`
       : `<p class="muted-note">${state.returned_to_lobby ? "Waiting for others to return to the lobby." : `Waiting for <strong>${escapeHtml(state.host)}</strong> to start.`}</p>`;
     document.getElementById("start-game")?.addEventListener("click", (e) => {
       e.currentTarget.disabled = true;
@@ -197,6 +206,16 @@ function renderGameView(state, localState) {
       if (clearBtn) clearBtn.disabled = used === 0;
     });
     window.currentInkUsed = () => drawingController?.getInkUsed() ?? 0;
+    window.recoverPendingControls = () => {
+      const undoBtn = document.getElementById("undo-stroke");
+      const clearBtn = document.getElementById("clear-turn");
+      if (undoBtn) undoBtn.disabled = (drawingController?.getUndoCount() ?? 0) === 0;
+      if (clearBtn) clearBtn.disabled = (drawingController?.getInkUsed() ?? 0) === 0;
+      const lobbyBtn = document.getElementById("return-lobby");
+      if (lobbyBtn && lobbyBtn.textContent === "Returning...") {
+        lobbyBtn.textContent = "Return to lobby";
+      }
+    };
   }
 
   const isTurn = state.state === "draw" && state.turn === localState.name;
@@ -546,6 +565,7 @@ function createCanvasController(canvas, onInkChange) {
   let activeStrokeStartUsed = 0;
   let undoStack = [];
   let baseImage = null;
+  let baseImageReady = true;
   let currentImageSrc = null;
   let painting = false;
   let lastPoint = null;
@@ -583,7 +603,7 @@ function createCanvasController(canvas, onInkChange) {
     };
   }
 
-  function strokeSegment(from, to) {
+  function strokeStep(from, to) {
     const pad = 7;
     const x0 = Math.max(0, Math.floor(Math.min(from.x, to.x) - pad));
     const y0 = Math.max(0, Math.floor(Math.min(from.y, to.y) - pad));
@@ -614,18 +634,38 @@ function createCanvasController(canvas, onInkChange) {
     if (nextUsed > maxInk) {
       inkCtx.putImageData(before, x0, y0);
       painting = false;
-      updateInkMeters();
       return false;
     }
 
     usedInk = nextUsed;
+    return true;
+  }
+
+  function strokeSegment(from, to) {
+    const dist = Math.hypot(to.x - from.x, to.y - from.y);
+    const steps = Math.max(1, Math.ceil(dist / 6));
+    let prev = from;
+    let drewAny = false;
+    for (let s = 1; s <= steps; s += 1) {
+      const t = s / steps;
+      const next = { x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t };
+      if (!strokeStep(prev, next)) {
+        if (drewAny) {
+          compositeCanvas();
+        }
+        updateInkMeters();
+        return false;
+      }
+      drewAny = true;
+      prev = next;
+    }
     compositeCanvas();
     updateInkMeters();
     return true;
   }
 
   canvas.addEventListener("pointerdown", (event) => {
-    if (!canDraw) return;
+    if (!canDraw || !baseImageReady) return;
     if (event.button !== undefined && event.button !== 0 && event.pointerType === "mouse") return;
     event.preventDefault();
     canvas.setPointerCapture?.(event.pointerId);
@@ -676,14 +716,22 @@ function createCanvasController(canvas, onInkChange) {
       currentImageSrc = src ?? null;
       if (!src) {
         baseImage = null;
+        baseImageReady = true;
         compositeCanvas();
         return;
       }
+      baseImageReady = false;
       const image = new Image();
       image.onload = () => {
         if (currentImageSrc === src) {
           baseImage = image;
+          baseImageReady = true;
           compositeCanvas();
+        }
+      };
+      image.onerror = () => {
+        if (currentImageSrc === src) {
+          baseImageReady = true;
         }
       };
       image.src = src;
