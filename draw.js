@@ -80,24 +80,44 @@ function renderLobbyView(state, localState) {
 
   const digitsEl = document.getElementById("lobby-code-digits");
   if (digitsEl) {
-    digitsEl.textContent = String(state.room_code ?? "");
+    const rawCode = String(state.room_code ?? "");
+    const visible = Boolean(state.code_visible);
+    digitsEl.dataset.code = rawCode;
+    digitsEl.textContent = visible ? rawCode : "••••••";
+    digitsEl.classList.toggle("is-masked", !visible);
   }
 
   const codeActionsEl = document.getElementById("lobby-code-actions");
-  if (codeActionsEl && !codeActionsEl.querySelector("#copy-code")) {
-    codeActionsEl.innerHTML = `<button type="button" id="copy-code" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Code</button>`;
-    document.getElementById("copy-code")?.addEventListener("click", async () => {
-      const btn = document.getElementById("copy-code");
-      try {
-        await navigator.clipboard?.writeText(document.getElementById("lobby-code-digits")?.textContent ?? "");
-        if (btn) {
-          btn.textContent = "Copied";
-          setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy Code"; }, 1400);
+  if (codeActionsEl) {
+    if (!codeActionsEl.querySelector("#copy-code")) {
+      codeActionsEl.innerHTML = `<button type="button" id="copy-code" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Code</button>`;
+      document.getElementById("copy-code")?.addEventListener("click", async () => {
+        const btn = document.getElementById("copy-code");
+        try {
+          await navigator.clipboard?.writeText(document.getElementById("lobby-code-digits")?.dataset.code ?? "");
+          if (btn) {
+            btn.textContent = "Copied";
+            setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy Code"; }, 1400);
+          }
+        } catch {
+          if (btn) btn.textContent = "Copy failed";
         }
-      } catch {
-        if (btn) btn.textContent = "Copy failed";
+      });
+    }
+    let visBtn = codeActionsEl.querySelector("#toggle-code-visibility");
+    if (isHost && canControlLobby) {
+      if (!visBtn) {
+        visBtn = document.createElement("button");
+        visBtn.type = "button";
+        visBtn.id = "toggle-code-visibility";
+        visBtn.className = "btn-ink btn-ink-ghost btn-ink-sm";
+        visBtn.addEventListener("click", () => toggleCodeVisibility());
+        codeActionsEl.appendChild(visBtn);
       }
-    });
+      visBtn.textContent = state.code_visible ? "Hide Code" : "Show Code";
+    } else if (visBtn) {
+      visBtn.remove();
+    }
   }
 
   const startActionsEl = document.getElementById("lobby-start-actions");
@@ -119,7 +139,7 @@ function renderLobbyView(state, localState) {
 
   const listEl = document.getElementById("lobby-player-list");
   if (listEl) {
-    const crownIcon = `<svg class="host-crown" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-label="Host" title="Host"><path d="M3 18h18v2H3v-2zm0-2l2-9 5 4 2-6 2 6 5-4 2 9H3z"/></svg>`;
+    const crownIcon = `<svg class="host-crown" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="Host" title="Host"><path d="M2 17l2-10 5 4 3-7 3 7 5-4 2 10H2z"/><path d="M4 21h16"/></svg>`;
     listEl.innerHTML = state.players.map((player) => {
       const isSelf = player.name === localState.name;
       const isRoomHost = player.name === state.host;
@@ -151,8 +171,9 @@ function renderGameView(state, localState) {
       <div class="game-topbar">
         <h2 class="phase-heading" id="phase-heading"></h2>
       </div>
-      <div class="game-stage">
-        <section class="canvas-card">
+      <div class="game-stage" id="game-stage">
+        <section class="canvas-card" id="canvas-card">
+          <div class="canvas-staging" id="canvas-staging" hidden>Dealing prompts...</div>
           <canvas id="canvas" width="400" height="400"></canvas>
           <div class="canvas-toolbar" id="canvas-toolbar"></div>
         </section>
@@ -181,6 +202,19 @@ function renderGameView(state, localState) {
   const isTurn = state.state === "draw" && state.turn === localState.name;
   const isImposter = localState.role === "imposter";
   const hasVoted = state.voted_players?.includes(localState.name) ?? false;
+  const stageEl = document.getElementById("game-stage");
+  if (stageEl) stageEl.dataset.phase = state.state;
+  const isPromptPhase = state.state === "prompt";
+  const canvasEl = document.getElementById("canvas");
+  const stagingEl = document.getElementById("canvas-staging");
+  if (canvasEl) canvasEl.hidden = isPromptPhase;
+  if (stagingEl) stagingEl.hidden = !isPromptPhase;
+  const canvasCardEl = document.getElementById("canvas-card");
+  const activeDrawer = state.players.find((p) => p.name === state.turn);
+  if (canvasCardEl) {
+    canvasCardEl.classList.toggle("is-my-turn", isTurn);
+    canvasCardEl.style.setProperty("--turn-colour", activeDrawer?.colour ?? "var(--border)");
+  }
 
   updateTopbar(state, isTurn, isImposter);
   updateCanvasAndToolbar(state, localState, isTurn);
@@ -234,7 +268,8 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
     return;
   }
   toolbarEl.hidden = false;
-  const toolbarKey = `${state.state}:${isTurn ? localState.name : state.turn ?? ""}:${localState.colour}`;
+  const drawer = state.players.find((p) => p.name === state.turn);
+  const toolbarKey = `${state.state}:${isTurn ? localState.name : state.turn ?? ""}:${localState.colour}:${drawer?.colour ?? ""}`;
   if (toolbarKey !== lastToolbarKey) {
     lastToolbarKey = toolbarKey;
     if (isTurn) {
@@ -255,7 +290,7 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
         <div class="canvas-actions">
           <button type="button" id="undo-stroke" class="btn-ink btn-ink-secondary btn-ink-sm" ${drawingController.getUndoCount() === 0 ? "disabled" : ""}>Undo</button>
           <button type="button" id="clear-turn" class="btn-ink btn-ink-secondary btn-ink-sm" ${used === 0 ? "disabled" : ""}>Clear</button>
-          <button type="button" id="finish-drawing" class="btn-ink btn-ink-primary" data-lock-on-submit>Finish Drawing</button>
+          <button type="button" id="finish-drawing" class="btn-ink btn-ink-primary ${remaining <= 0 ? "is-ink-empty" : ""}" data-lock-on-submit>Finish Drawing</button>
         </div>
       `;
       document.getElementById("undo-stroke")?.addEventListener("click", () => drawingController.undo());
@@ -269,7 +304,7 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
         submitTurn(drawingController.exportPng());
       });
     } else {
-      toolbarEl.innerHTML = `<span class="muted-note toolbar-wait">Waiting for ${escapeHtml(state.turn)}</span>`;
+      toolbarEl.innerHTML = `<span class="turn-wait-pill"><span class="ink-swatch" style="background:${escapeHtml(drawer?.colour ?? "var(--border)")}"></span>${escapeHtml(state.turn)} is drawing</span>`;
     }
   }
 }
@@ -277,6 +312,15 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
 function updatePhaseActionCard(state, isImposter, hasVoted) {
   const card = document.getElementById("phase-action-card");
   if (!card) return;
+
+  if (state.state === "prompt") {
+    if (lastActionKey !== "prompt") {
+      lastActionKey = "prompt";
+      card.hidden = false;
+      card.innerHTML = `<h3 class="section-title phase-card-title">Dealing prompts</h3><p class="muted-note phase-card-note">Waiting for all players...</p>`;
+    }
+    return;
+  }
 
   if (state.state === "vote") {
     const key = `vote:${state.players.map((p) => p.name).join(",")}`;
@@ -371,20 +415,31 @@ function updatePhaseActionCard(state, isImposter, hasVoted) {
       lastActionKey = key;
       card.hidden = false;
       const goodWon = String(state.result.outcome ?? "").toLowerCase().includes("good");
-      const accusedRow = state.result.accused
-        ? `<div class="result-row"><span class="result-label">Voted out</span><span class="result-value">${escapeHtml(state.result.accused)}</span></div>`
+      const imposterPlayer = state.players.find((p) => p.name === state.result.imposter);
+      const imposterSwatch = imposterPlayer
+        ? `<span class="ink-swatch" style="background:${escapeHtml(imposterPlayer.colour)}"></span>`
         : "";
-      const guessRow = state.result.guess
-        ? `<div class="result-row"><span class="result-label">Imposter&rsquo;s guess</span><span class="result-value">${escapeHtml(state.result.guess)} (${state.result.correct === "true" ? "Correct" : "Incorrect"})</span></div>`
-        : "";
+      const secondaryRows = [
+        state.result.accused
+          ? `<div class="result-row"><span class="result-label">Voted out</span><span class="result-value">${escapeHtml(state.result.accused)}</span></div>`
+          : "",
+        state.result.guess
+          ? `<div class="result-row"><span class="result-label">Imposter&rsquo;s guess</span><span class="result-value">${escapeHtml(state.result.guess)} (${state.result.correct === "true" ? "Correct" : "Incorrect"})</span></div>`
+          : "",
+      ].join("");
       card.innerHTML = `
         <div class="result-outcome ${goodWon ? "is-win-good" : "is-win-imposter"}">${escapeHtml(state.result.outcome ?? "Round over")}</div>
-        <div class="result-list">
-          <div class="result-row"><span class="result-label">Secret word</span><span class="result-value">${escapeHtml(state.result.prompt ?? "Unknown")}</span></div>
-          <div class="result-row"><span class="result-label">Imposter</span><span class="result-value">${escapeHtml(state.result.imposter ?? "Unknown")}</span></div>
-          ${accusedRow}
-          ${guessRow}
+        <div class="result-spotlight">
+          <div class="result-spotlight-item">
+            <span class="result-label">Secret word</span>
+            <span class="result-spotlight-value">${escapeHtml(state.result.prompt ?? "Unknown")}</span>
+          </div>
+          <div class="result-spotlight-item">
+            <span class="result-label">Imposter</span>
+            <span class="result-spotlight-value result-imposter-name">${imposterSwatch}${escapeHtml(state.result.imposter ?? "Unknown")}</span>
+          </div>
         </div>
+        ${secondaryRows ? `<div class="result-list">${secondaryRows}</div>` : ""}
         <div class="result-actions">
           <button type="button" class="btn-ink btn-ink-secondary" id="return-menu">Leave room</button>
           <button type="button" class="btn-ink btn-ink-primary" id="return-lobby" data-lock-on-submit>Return to lobby</button>
@@ -461,7 +516,7 @@ function updatePlayersInkPanel(state, localState) {
           <div class="ink-bar-track ink-bar-sm" aria-label="${escapeHtml(player.name)} ink remaining">
             <div class="ink-bar-fill" data-ink-player="${escapeHtml(player.name)}" style="width:${pct}%;background-color:${escapeHtml(player.colour)}"></div>
           </div>
-          <small class="ink-px" data-ink-label="${escapeHtml(player.name)}">${remaining} / ${player.max_ink} px</small>
+          <small class="ink-amount" data-ink-label="${escapeHtml(player.name)}">${remaining} / ${player.max_ink}</small>
         ` : ""}
       </div>
     `;
@@ -507,20 +562,16 @@ function createCanvasController(canvas, onInkChange) {
   function updateInkMeters() {
     const remaining = Math.max(0, maxInk - usedInk);
     const pct = Math.max(0, Math.min(100, (remaining / (maxInk || 1)) * 100));
-    if (localName) {
-      const bar = document.querySelector(`[data-ink-player="${CSS.escape(localName)}"]`);
-      const label = document.querySelector(`[data-ink-label="${CSS.escape(localName)}"]`);
-      if (bar) bar.style.width = `${pct}%`;
-      if (label) label.textContent = `${remaining} / ${maxInk} px`;
-    }
     const activeLabel = document.querySelector("[data-active-ink-label]");
     const activeFill = document.querySelector("[data-active-ink-fill]");
-    if (activeLabel) activeLabel.textContent = remaining <= 0 ? "Out of ink" : `${remaining} / ${maxInk} px`;
+    const finishBtn = document.getElementById("finish-drawing");
+    if (activeLabel) activeLabel.textContent = remaining <= 0 ? "Out of ink" : `${remaining} / ${maxInk}`;
     if (activeFill) {
       activeFill.style.width = `${pct}%`;
       activeFill.classList.toggle("is-empty", remaining <= 0);
       activeFill.classList.toggle("is-low", remaining > 0 && pct <= 25);
     }
+    if (finishBtn) finishBtn.classList.toggle("is-ink-empty", remaining <= 0);
     onInkChange?.();
   }
 

@@ -5,6 +5,41 @@ let stateListener = null;
 let latestSequence = -1;
 let leavingGame = false;
 let leaveTimer = null;
+const NICKNAME_STORAGE_KEY = "scrimposter.nickname";
+
+function loadSavedNickname() {
+    try {
+        return localStorage.getItem(NICKNAME_STORAGE_KEY) || "";
+    } catch {
+        return "";
+    }
+}
+
+function saveNickname(name) {
+    try {
+        if (name) {
+            localStorage.setItem(NICKNAME_STORAGE_KEY, name);
+        }
+    } catch {}
+}
+
+function restoreSavedNickname() {
+    const nameEl = document.getElementById("nameText");
+    if (nameEl && !nameEl.value) {
+        const saved = loadSavedNickname();
+        if (saved) {
+            nameEl.value = saved.slice(0, 24);
+        }
+    }
+}
+
+if (typeof document !== "undefined") {
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", restoreSavedNickname);
+    } else {
+        restoreSavedNickname();
+    }
+}
 
 function setConnectionStatus(message, isInfo = false) {
     const statusEl = document.getElementById("connectionStatus");
@@ -185,6 +220,7 @@ function CodeEnter() {
         return;
     }
     nameEl.value = name;
+    saveNickname(name);
     setConnectionStatus("Joining room...", true);
     connectToRoom(code, name, window.renderGameState, window.handleGameEvent, true);
 }
@@ -201,6 +237,7 @@ async function createRoom(rawName) {
     if (nameEl) {
         nameEl.value = name;
     }
+    saveNickname(name);
     if (createBtn) {
         createBtn.disabled = true;
     }
