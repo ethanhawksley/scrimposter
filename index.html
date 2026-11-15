@@ -1,67 +1,71 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-    <script src="main_menu.js"></script>
-    <meta charset="utf-8"/>
-    <meta content="width=device-width, initial-scale=1" name="viewport"/>
-    <title>Scrimposter</title>
-    <meta content="Scrimposter" name="description"/>
-    <link href="style.css" rel="stylesheet"/>
-    <link href="https://scrimposter.hawksley.dev/" rel="canonical"/>
-    <meta content="light dark" name="color-scheme"/>
-    <meta content="website" property="og:type"/>
-    <meta content="https://scrimposter.hawksley.dev/" property="og:url"/>
-    <meta content="Scrimposter" property="og:title"/>
-    <meta content="Scrimposter" property="og:description"/>
+  <script src="main_menu.js"></script>
+  <meta charset="utf-8" />
+  <meta content="width=device-width, initial-scale=1" name="viewport" />
+  <title>Scrimposter</title>
+  <meta content="Scrimposter" name="description" />
+  <link href="style.css" rel="stylesheet" />
+  <link href="https://scrimposter.hawksley.dev/" rel="canonical" />
+  <meta content="light dark" name="color-scheme" />
+  <meta content="website" property="og:type" />
+  <meta content="https://scrimposter.hawksley.dev/" property="og:url" />
+  <meta content="Scrimposter" property="og:title" />
+  <meta content="Scrimposter" property="og:description" />
 </head>
+
 <body>
-<h1>Scrimposter</h1>
-<div id="app"></div>
-<script type="module">
-  import {draw} from './draw.js';
-  // Game Screens = "main_menu","lobby","draw","vote","results"
-  let state = {
-    players: [
-      {
-        name: 'John',
-        colour: '#ff0000',
-        role: 'imposter',
-        isAlive: true,
-      },
-      {
-        name: 'Mary',
-        colour: '#00ffff',
-        role: 'civillian',
-        isAlive: true,
-      },
-    ],
-    turn: 'John',
-    host: 'John',
-    word: 'Football',
-    clue: 'A ball',
-    image: new Image(),
-  };
+  <h1>Scrimposter</h1>
+  <div id="app"></div>
+  <script type="module">
+    import { draw } from './draw.js';
+    // Game Screens = "main_menu","lobby","draw","vote","results"
+    let state = {
+      players: [
+        {
+          name: 'John',
+          colour: '#ff0000',
+          role: 'imposter',
+          isAlive: true,
+        },
+        {
+          name: 'Mary',
+          colour: '#00ffff',
+          role: 'civillian',
+          isAlive: true,
+        },
+      ],
+      turn: 'John',
+      host: 'John',
+      word: 'Football',
+      clue: 'A ball',
+      image: new Image(),
+    };
 
-  state.image.src = './smile.jpg';
+    state.image.src = './smile.jpg';
 
-  let localState = {
-    name: 'John',
-    colour: '#ff0000',
-    role: 'imposter',
-    isAlive: true,
-    audioMuted: false,
-  };
+    let localState = {
+      name: 'John',
+      colour: '#ff0000',
+      role: 'imposter',
+      isAlive: true,
+      audioMuted: false,
+    };
 
-  // For testing, immediately render the "draw" screen
-  state.image.onload = () => {
-    draw(state, localState);
-  };
-</script>
-<p>Enter Name:</p>
-<textarea id="nameText"></textarea>
-<br>
-<p>Enter Room Code:</p>
-<textarea id="codeText"></textarea>
-<button type="button" onclick="CodeEnter()">Submit Code</button>
+    // For testing, immediately render the "draw" screen
+    state.image.onload = () => {
+      draw(state, localState);
+    };
+  </script>
+  <p>Enter Name:</p>
+  <textarea id="nameText"></textarea>
+  <br>
+  <p>Enter Room Code:</p>
+  <textarea id="codeText"></textarea>
+  <button type="button" onclick="CodeEnter()">Submit Code</button>
+  <button type="button" onclick="createRoom(document.getElementById('nameText').value)">Create Room</button>
 </body>
+
 </html>

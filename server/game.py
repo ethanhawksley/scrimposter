@@ -46,7 +46,7 @@ class Game:
         if(self.promptsGiven>=len(self.players)):
             self.state = GameState.DRAW
 
-        if(self.imposter.name == name):
+        if(self.imposter.name == name): #type: ignore
             return self.possibleClues[self.promptIndex]
         return self.possiblePrompts[self.promptIndex] #wooo
 

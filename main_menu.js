@@ -72,9 +72,27 @@ function vote(target) {
 }
 
 function CodeEnter() {
-    let code = document.getElementById('codeText').innerText
-    let name = document.getElementById('nameText').innerText
-    connectToRoom(code, name, )
+    const code = document.getElementById('codeText').value.trim();
+    const name = document.getElementById('nameText').value.trim();
+    connectToRoom(code, name);
+}
+
+async function createRoom(name) {
+    const params = new URLSearchParams({ player_id: name, colour: "1" });
+    const response = await fetch(`http://127.0.0.1:8000/rooms?${params}`, {
+        method: "POST",
+    })
+    const data = await response.json();
+
+    if (!response.ok) {
+        throw new Error(data.message ?? `Unable to create lobby (${response.status})`);
+    }
+    if (typeof data.lobby_code !== "string" || data.lobby_code.length === 0) {
+        throw new Error("Lobby creation response did not contain a lobby code");
+    }
+
+    document.getElementById("codeText").value = data.lobby_code;
+    return data.lobby_code;
 }
 
 window.connectToRoom = connectToRoom;

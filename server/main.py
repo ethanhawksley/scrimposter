@@ -3,6 +3,7 @@ from collections import defaultdict
 from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
 from game import Game
 from random import randint
 
@@ -11,6 +12,14 @@ active_lobbies: dict[str, Game] = {}
 connections: dict[str, dict[str, set[WebSocket]]] = defaultdict(lambda: defaultdict(set))
 room_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 room_sequences: dict[str, int] = defaultdict(int)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Restrict this when deploying
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
 
 @app.get("/")
 def read_root():
