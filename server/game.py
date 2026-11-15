@@ -75,12 +75,12 @@ class Game:
 
     def startGame(self, startedBy):
         if(startedBy != self.host.name):
-            raise Exception("Player with colour"+startedBy+" does not have permission to start the game")
+            raise ValueError("Player with colour"+startedBy+" does not have permission to start the game")
         if (self.state == GameState.LOBBY):
             self.imposter = random.choice(self.players)
             self.state = GameState.PROMPT
         else:
-            raise Exception("startGame method can only be called in the lobby")
+            raise AttributeError("startGame method can only be called in the lobby")
 
     def nextTurn(self):
         self.turn = (self.turn+1)%len(self.players)
