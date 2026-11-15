@@ -67,7 +67,6 @@ function renderLobbyView(state, localState) {
           </div>
           <div class="lobby-actions" id="lobby-code-actions"></div>
           <div class="lobby-actions lobby-start-row" id="lobby-start-actions"></div>
-          <p class="muted-note" id="lobby-hint-note" hidden></p>
         </section>
         <section class="card-paper">
           <h2 class="section-title" id="lobby-players-heading">Players</h2>
@@ -130,12 +129,6 @@ function renderLobbyView(state, localState) {
     });
   }
 
-  const hintEl = document.getElementById("lobby-hint-note");
-  if (hintEl) {
-    const showHint = isHost && canControlLobby && state.players.length < 3;
-    hintEl.hidden = !showHint;
-    hintEl.textContent = showHint ? "3+ players recommended." : "";
-  }
 
   const headingEl = document.getElementById("lobby-players-heading");
   if (headingEl) {
