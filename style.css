@@ -363,11 +363,6 @@ body {
   text-transform: uppercase;
 }
 
-.tag-pill.is-turn {
-  background: var(--accent);
-  border-color: var(--border);
-  color: #fffdf9;
-}
 
 .tag-pill.is-voted {
   background: #e8f3ee;
@@ -408,33 +403,6 @@ body {
   margin: 0;
 }
 
-.phase-steps {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-}
-
-.phase-step {
-  background: var(--surface-alt);
-  border: 1.5px solid var(--border-soft);
-  border-radius: 5px;
-  color: var(--ink-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  padding: 0.25rem 0.55rem;
-}
-
-.phase-step.is-done {
-  background: #e8f3ee;
-  border-color: #77b39e;
-  color: #144a3a;
-}
-
-.phase-step.is-current {
-  background: var(--ink);
-  border-color: var(--ink);
-  color: var(--surface);
-}
 
 .game-stage {
   align-items: start;
@@ -619,9 +587,25 @@ body {
   padding: 0.55rem 0.7rem;
 }
 
+.you-label {
+  color: var(--ink-muted);
+  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-left: -0.2rem;
+}
+
+.host-crown {
+  color: var(--amber);
+  display: block;
+  flex-shrink: 0;
+}
+
 .ink-player.is-active {
   background: #fff8eb;
   border-color: var(--border);
+  border-left-width: 5px;
+  padding-left: calc(0.7rem - 3.5px);
 }
 
 .ink-player-head {

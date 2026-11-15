@@ -119,6 +119,7 @@ function renderLobbyView(state, localState) {
 
   const listEl = document.getElementById("lobby-player-list");
   if (listEl) {
+    const crownIcon = `<svg class="host-crown" width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-label="Host" title="Host"><path d="M3 18h18v2H3v-2zm0-2l2-9 5 4 2-6 2 6 5-4 2 9H3z"/></svg>`;
     listEl.innerHTML = state.players.map((player) => {
       const isSelf = player.name === localState.name;
       const isRoomHost = player.name === state.host;
@@ -127,11 +128,9 @@ function renderLobbyView(state, localState) {
           <span class="player-identity">
             <span class="ink-swatch" style="background:${escapeHtml(player.colour)}"></span>
             <span class="player-name">${escapeHtml(player.name)}</span>
+            ${isSelf ? `<span class="you-label">(you)</span>` : ""}
           </span>
-          <span class="player-tags">
-            ${isSelf ? `<span class="tag-pill">You</span>` : ""}
-            ${isRoomHost ? `<span class="tag-pill">Host</span>` : ""}
-          </span>
+          ${isRoomHost ? `<span class="player-tags">${crownIcon}</span>` : ""}
         </li>
       `;
     }).join("");
@@ -151,7 +150,6 @@ function renderGameView(state, localState) {
       <div id="game-error-banner" class="status-banner" role="alert" hidden></div>
       <div class="game-topbar">
         <h2 class="phase-heading" id="phase-heading"></h2>
-        <div class="phase-steps" id="phase-steps" aria-label="Round progress"></div>
       </div>
       <div class="game-stage">
         <section class="canvas-card">
@@ -193,7 +191,6 @@ function renderGameView(state, localState) {
 
 function updateTopbar(state, isTurn, isImposter) {
   const headingEl = document.getElementById("phase-heading");
-  const stepsEl = document.getElementById("phase-steps");
 
   const heading = state.state === "prompt"
     ? "Dealing prompts"
@@ -208,22 +205,6 @@ function updateTopbar(state, isTurn, isImposter) {
             : `${escapeHtml(state.turn)}&rsquo;s turn`;
 
   if (headingEl) headingEl.innerHTML = heading;
-
-  const includeGuess = state.state === "imposter_guess" || Boolean(state.result?.guess);
-  const phaseList = [
-    { key: "prompt", label: "Briefing" },
-    { key: "draw", label: "Draw" },
-    { key: "vote", label: "Vote" },
-    ...(includeGuess ? [{ key: "imposter_guess", label: "Guess" }] : []),
-    { key: "results", label: "Results" },
-  ];
-  const currentIdx = phaseList.findIndex((step) => step.key === state.state);
-  if (stepsEl) {
-    stepsEl.innerHTML = phaseList.map((step, idx) => {
-      const cls = idx === currentIdx ? "is-current" : idx < currentIdx ? "is-done" : "";
-      return `<span class="phase-step ${cls}">${step.label}</span>`;
-    }).join("");
-  }
 }
 
 function updateCanvasAndToolbar(state, localState, isTurn) {
@@ -265,7 +246,7 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
         <div class="ink-meter-wrap">
           <div class="ink-meter-head">
             <span class="toolbar-colour"><span class="ink-swatch" style="background:${escapeHtml(localState.colour)}"></span>Ink</span>
-            <span class="ink-meter-label" data-active-ink-label>${remaining <= 0 ? "Out of ink" : `${remaining} / ${activeMax} px`}</span>
+            <span class="ink-meter-label" data-active-ink-label>${remaining <= 0 ? "Out of ink" : `${remaining} / ${activeMax}`}</span>
           </div>
           <div class="ink-bar-track">
             <div class="ink-bar-fill ${stateClass}" data-active-ink-fill style="width:${pct}%"></div>
@@ -464,23 +445,18 @@ function updatePlayersInkPanel(state, localState) {
   panel.innerHTML = state.players.map((player) => {
     const isDrawingNow = state.state === "draw" && player.name === state.turn;
     const isSelf = player.name === localState.name;
-    const isRoomHost = player.name === state.host;
     const playerVoted = state.state === "vote" && (state.voted_players?.includes(player.name) ?? false);
     const remaining = player.ink_remaining;
     const pct = Math.max(0, Math.min(100, (remaining / (player.max_ink || 1)) * 100));
     return `
-      <div class="ink-player ${isDrawingNow ? "is-active" : ""}">
+      <div class="ink-player ${isDrawingNow ? "is-active" : ""}" ${isDrawingNow ? `style="border-left-color:${escapeHtml(player.colour)}"` : ""}>
         <div class="ink-player-head">
           <span class="player-identity">
             <span class="ink-swatch" style="background:${escapeHtml(player.colour)}"></span>
             <strong class="player-name">${escapeHtml(player.name)}</strong>
+            ${isSelf ? `<span class="you-label">(you)</span>` : ""}
           </span>
-          <span class="player-tags">
-            ${isDrawingNow ? `<span class="tag-pill is-turn">Drawing</span>` : ""}
-            ${playerVoted ? `<span class="tag-pill is-voted">Voted</span>` : ""}
-            ${isSelf ? `<span class="tag-pill">You</span>` : ""}
-            ${isRoomHost ? `<span class="tag-pill">Host</span>` : ""}
-          </span>
+          ${playerVoted ? `<span class="player-tags"><span class="tag-pill is-voted">Voted</span></span>` : ""}
         </div>
         ${showInk ? `
           <div class="ink-bar-track ink-bar-sm" aria-label="${escapeHtml(player.name)} ink remaining">
