@@ -291,7 +291,6 @@ function updatePhaseActionCard(state, isImposter, hasVoted) {
       card.hidden = false;
       card.innerHTML = `
         <h3 class="section-title phase-card-title">Vote</h3>
-        <p class="muted-note phase-card-note">Tie or majority skip starts another round.</p>
         <div class="vote-grid">${voteChoices}</div>
         <button type="button" class="btn-ink btn-ink-ghost vote-choice vote-skip" data-lock-on-submit data-vote-target="skip">Skip</button>
         <p class="vote-progress" id="vote-progress-text"></p>
