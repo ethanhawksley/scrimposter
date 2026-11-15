@@ -61,10 +61,8 @@ async def submit_turn(
     image: str
 ):
     game = active_lobbies[room_code]
-    if game.whoseTurn() == player_id:
-        game.submitTurn(image)
-        return {"message": "Turn submitted"}
-    return {"message": "Turn not submitted"}
+    game.submitTurn(player_id, image)
+    return {"message": "Turn submitted"}
 
 @app.get("/games/{room_code}/info")
 def get_game_info(

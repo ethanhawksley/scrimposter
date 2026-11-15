@@ -109,8 +109,9 @@ class Game:
         if(self.host==player):
             self.host = random.choice(self.players)
 
-    def submitTurn(self, imageString):
-        self.submittedTurns.append(imageString)
+    def submitTurn(self, player_id: str, imageString: str):
+        if player_id == self.whoseTurn:
+            self.submittedTurns.append(imageString)
 
     def chooseColour(self, playerName, chosenColour):
 
