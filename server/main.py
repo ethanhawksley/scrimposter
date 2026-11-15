@@ -170,7 +170,7 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
             await send_event(websocket, "connection_ready", {"room_code": room_code})
             await send_snapshot(websocket, game, clean_id, room_code)
         else:
-            if game.state != GameState.LOBBY:
+            if game.state not in (GameState.LOBBY, GameState.RESULTS):
                 await send_error(websocket, "game_in_progress", "Cannot join a game already in progress")
                 await websocket.close(code=1008)
                 return
@@ -199,7 +199,7 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
                 and not still_connected
                 and clean_id in {player.name for player in game.players}
             ):
-                if game.state == GameState.LOBBY:
+                if game.state in (GameState.LOBBY, GameState.RESULTS):
                     game.leaveGame(clean_id)
                     if not game.players:
                         active_lobbies.pop(room_code, None)

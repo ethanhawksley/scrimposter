@@ -301,7 +301,7 @@ class Game:
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("Enter a valid nickname")
-        if self.state != GameState.LOBBY:
+        if self.state not in (GameState.LOBBY, GameState.RESULTS):
             raise ValueError("Cannot join a game already in progress")
 
         for player in self.players:
@@ -309,6 +309,8 @@ class Game:
                 raise ValueError("That name is already taken")
 
         self.players.append(Player(clean_name, self._new_colour(), self.MAX_INK))
+        if self.state == GameState.RESULTS:
+            self.returned_players.add(clean_name)
 
     def resetInk(self):
         for player in self.players:
