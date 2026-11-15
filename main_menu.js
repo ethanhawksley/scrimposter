@@ -81,6 +81,8 @@ function setConnectionStatus(message, isInfo = false) {
     statusEl.textContent = message || "";
 }
 
+const REMOTE_BACKEND_HOST = "scrimposter-fastapi.hawksley.dev";
+
 function getBackendLocation() {
     const isFile = window.location.protocol === "file:";
     const hostname = isFile ? "127.0.0.1" : window.location.hostname;
@@ -88,14 +90,22 @@ function getBackendLocation() {
         || ["0.0.0.0", "127.0.0.1", "localhost", ""].includes(hostname)
         || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname)
         || hostname.endsWith(".local");
-    const port = window.location.port;
-    const useDevPort = isFile || (isLocalHost && port !== "8000");
-    const resolvedHost = useDevPort
-        ? `${hostname === "0.0.0.0" || hostname === "" ? "scrimposter-fastapi.hawksley.dev" : hostname}:8000`
-        : window.location.host;
-    const httpBase = useDevPort ? `http://${resolvedHost}` : window.location.origin;
-    const wsProtocol = !isFile && window.location.protocol === "https:" ? "wss:" : "ws:";
-    return { httpBase, wsBase: `${wsProtocol}//${resolvedHost}` };
+    if (isLocalHost) {
+        const port = window.location.port;
+        const devHost = hostname === "0.0.0.0" || hostname === "" ? "127.0.0.1" : hostname;
+        const resolvedHost = port === "8000" ? window.location.host : `${devHost}:8000`;
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        const httpProtocol = window.location.protocol === "https:" ? "https:" : "http:";
+        return { httpBase: `${httpProtocol}//${resolvedHost}`, wsBase: `${wsProtocol}//${resolvedHost}` };
+    }
+    if (hostname === REMOTE_BACKEND_HOST) {
+        const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return { httpBase: window.location.origin, wsBase: `${wsProtocol}//${window.location.host}` };
+    }
+    return {
+        httpBase: `https://${REMOTE_BACKEND_HOST}`,
+        wsBase: `wss://${REMOTE_BACKEND_HOST}`,
+    };
 }
 
 function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = false) {
@@ -289,7 +299,13 @@ async function createRoom(rawName) {
         const response = await fetch(`${httpBase}/rooms?${params}`, {
             method: "POST",
         });
-        const data = await response.json();
+        const raw = await response.text();
+        let data = {};
+        try {
+            data = raw ? JSON.parse(raw) : {};
+        } catch {
+            throw new Error(`Invalid response from server (${response.status})`);
+        }
         if (!response.ok) {
             throw new Error(data.message ?? `Unable to create lobby (${response.status})`);
         }
