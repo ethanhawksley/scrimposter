@@ -2,6 +2,7 @@ import random
 from enum import Enum
 from random import randint
 from typing import Optional
+from constants import PROMPTS
 
 class GameState(Enum):
     LOBBY = 0
@@ -20,38 +21,6 @@ class Player:
 class Game:
     MAX_INK = 2000
     MIN_PLAYERS = 3
-    PROMPTS = (
-        ("Lighthouse", "Coastal guide"),
-        ("Submarine", "Deep vessel"),
-        ("Telescope", "Distant view"),
-        ("Volcano", "Sleeping mountain"),
-        ("Campfire", "Night gathering"),
-        ("Windmill", "Breeze worker"),
-        ("Treehouse", "Elevated hideout"),
-        ("Hammock", "Suspended rest"),
-        ("Compass", "True direction"),
-        ("Umbrella", "Weather shield"),
-        ("Guitar", "Strung wood"),
-        ("Snowman", "Winter sculpture"),
-        ("Bicycle", "Balanced travel"),
-        ("Cactus", "Prickly survivor"),
-        ("Balloon", "Fragile float"),
-        ("Anchor", "Heavy hold"),
-        ("Clocktower", "Timekeeper"),
-        ("Bridge", "Gap crosser"),
-        ("Kite", "Tethered flyer"),
-        ("Snail", "Slow traveler"),
-        ("Igloo", "Frozen shelter"),
-        ("Trampoline", "Springy circle"),
-        ("Fountain", "Water centerpiece"),
-        ("Skateboard", "Rolling plank"),
-        ("Backpack", "Shouldered load"),
-        ("Lantern", "Portable glow"),
-        ("Canoe", "Paddled craft"),
-        ("Scarecrow", "Field guard"),
-        ("Trophy", "Earned prize"),
-        ("Sandcastle", "Temporary fort"),
-    )
     COLOUR_PALETTE = (
         "#e74c3c",
         "#3498db",
@@ -76,8 +45,8 @@ class Game:
         self.players.append(self.host)
         self.imposter: Optional[Player] = None
         self.turn = 0
-        self.possiblePrompts = [prompt for prompt, _ in self.PROMPTS]
-        self.possibleClues = [clue for _, clue in self.PROMPTS]
+        self.possiblePrompts = [prompt for prompt, _ in PROMPTS]
+        self.possibleClues = [clue for _, clue in PROMPTS]
         self.promptIndex = -1
         self.used_prompt_indices: set[int] = set()
         self.state = GameState.LOBBY
