@@ -54,11 +54,12 @@ def health_check():
 @app.post("/rooms")
 def create_room(
     player_id: str,
-    colour: int = 1
+    colour: int = 1,
+    code_visible: bool = True,
 ):
     room_code = generate_lobby_code()
     try:
-        active_lobbies[room_code] = Game(player_id, colour)
+        active_lobbies[room_code] = Game(player_id, colour, code_visible=code_visible)
     except ValueError as error:
         return JSONResponse({"message": str(error)}, status_code=400)
     return {"lobby_code": room_code, "message": "Lobby created"}

@@ -140,9 +140,10 @@ function renderLobbyView(state, localState) {
         visBtn.type = "button";
         visBtn.id = "toggle-code-visibility";
         visBtn.className = "btn-ink btn-ink-ghost btn-ink-sm";
-        visBtn.addEventListener("click", () => toggleCodeVisibility());
+        visBtn.addEventListener("click", () => toggleCodeVisibility(visBtn.dataset.codeVisible !== "true"));
         codeActionsEl.appendChild(visBtn);
       }
+      visBtn.dataset.codeVisible = String(Boolean(state.code_visible));
       visBtn.textContent = state.code_visible ? "Hide Code" : "Show Code";
     } else if (visBtn) {
       visBtn.remove();

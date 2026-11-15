@@ -5,7 +5,23 @@ let stateListener = null;
 let latestSequence = -1;
 let leavingGame = false;
 let leaveTimer = null;
+let lastCodeVisible = null;
 const NICKNAME_STORAGE_KEY = "scrimposter.nickname";
+const CODE_VISIBILITY_STORAGE_KEY = "scrimposter.codeVisible";
+
+function loadCodeVisibilityPreference() {
+    try {
+        return localStorage.getItem(CODE_VISIBILITY_STORAGE_KEY) !== "false";
+    } catch {
+        return true;
+    }
+}
+
+function saveCodeVisibilityPreference(visible) {
+    try {
+        localStorage.setItem(CODE_VISIBILITY_STORAGE_KEY, visible ? "true" : "false");
+    } catch {}
+}
 
 function loadSavedNickname() {
     try {
@@ -113,6 +129,7 @@ function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = fal
     currentPlayer = playerId;
     stateListener = onState;
     latestSequence = -1;
+    lastCodeVisible = null;
 
     if (websocket) {
         websocket.__replaced = true;
@@ -140,6 +157,9 @@ function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = fal
             const sequence = message.payload.sequence ?? 0;
             if (sequence >= latestSequence) {
                 latestSequence = sequence;
+                if (typeof message.payload.game?.code_visible === "boolean") {
+                    lastCodeVisible = message.payload.game.code_visible;
+                }
                 stateListener(message.payload.game, sequence);
             }
         } else if (onEvent) {
@@ -183,8 +203,10 @@ function startGame() {
     sendCommand("start_game");
 }
 
-function toggleCodeVisibility() {
+function toggleCodeVisibility(nextVisible) {
+    const targetVisible = typeof nextVisible === "boolean" ? nextVisible : !(lastCodeVisible ?? loadCodeVisibilityPreference());
     sendCommand("toggle_code_visibility");
+    saveCodeVisibilityPreference(targetVisible);
 }
 
 function requestPrompt() {
@@ -251,6 +273,7 @@ function finishLeavingGame() {
     websocket = null;
     currentRoom = null;
     currentPlayer = null;
+    lastCodeVisible = null;
     leavingGame = false;
 }
 
@@ -295,7 +318,7 @@ async function createRoom(rawName) {
     setConnectionStatus("Creating room...", true);
     try {
         const { httpBase } = getBackendLocation();
-        const params = new URLSearchParams({ player_id: name, colour: "1" });
+        const params = new URLSearchParams({ player_id: name, colour: "1", code_visible: String(loadCodeVisibilityPreference()) });
         const response = await fetch(`${httpBase}/rooms?${params}`, {
             method: "POST",
         });

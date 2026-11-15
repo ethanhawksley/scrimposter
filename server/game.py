@@ -37,7 +37,7 @@ class Game:
         "#2d3436",
     )
 
-    def __init__(self, name, colour):
+    def __init__(self, name, colour, code_visible: bool = True):
         clean_name = name.strip()
         if not clean_name:
             raise ValueError("Enter a valid nickname")
@@ -51,7 +51,7 @@ class Game:
         self.promptIndex = -1
         self.used_prompt_indices: set[int] = set()
         self.state = GameState.LOBBY
-        self.code_visible = False
+        self.code_visible = bool(code_visible)
         self.votes: dict[str, int] = {}
         self.voted_players: set[str] = set()
         self.result: Optional[dict[str, str]] = None
