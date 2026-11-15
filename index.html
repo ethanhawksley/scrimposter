@@ -170,7 +170,7 @@
     window.showPrompt = (payload = {}) => {
       if (!roleDialog) return;
       const isImposter = payload.role === "imposter";
-      const title = payload.title ?? (isImposter ? "You are the imposter" : "You are a good player");
+      const title = payload.title ?? (isImposter ? "You are the imposter" : "You are a civillian");
       const prompt = payload.prompt ?? "No prompt was provided.";
       roleDialog.innerHTML = `
         <div class="role-dialog-card">

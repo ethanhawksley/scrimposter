@@ -68,8 +68,11 @@ class Game:
     )
 
     def __init__(self, name, colour):
+        clean_name = name.strip()
+        if not clean_name:
+            raise ValueError("Enter a valid nickname")
         self.players = []
-        self.host = Player(name, self._new_colour(), self.MAX_INK)
+        self.host = Player(clean_name, self._new_colour(), self.MAX_INK)
         self.players.append(self.host)
         self.imposter: Optional[Player] = None
         self.turn = 0
@@ -118,12 +121,12 @@ class Game:
                 "role": "imposter",
                 "prompt": self.possibleClues[self.promptIndex],
                 "title": "You are the imposter",
-                "description": "Blend in while drawing. Work out the secret word before the good players find you.",
+                "description": "Blend in while drawing. Work out the secret word before the civillians find you.",
             }
         return {
             "role": "good",
             "prompt": self.possiblePrompts[self.promptIndex],
-            "title": "You are a good player",
+            "title": "You are a civillian",
             "description": "Draw the secret word and identify the imposter.",
         }
 
@@ -171,7 +174,7 @@ class Game:
             raise ValueError("Only the imposter may guess the prompt")
         correct = guess.strip().casefold() == self.possiblePrompts[self.promptIndex].casefold()
         self.result = {
-            "outcome": "Imposter wins" if correct else "Good players win",
+            "outcome": "Imposter wins" if correct else "Civillians win",
             "accused": self.imposter.name,
             "imposter": self.imposter.name,
             "prompt": self.possiblePrompts[self.promptIndex],
@@ -237,9 +240,9 @@ class Game:
             self.voted_players.clear()
             self.result = None
             self.status_note = (
-                "Vote skipped — draw again"
+                "Vote skipped. Draw again."
                 if skip_votes >= highest_player_votes
-                else "Vote tied — draw again"
+                else "Vote tied. Draw again."
             )
             self.resetInk()
             return
@@ -265,14 +268,17 @@ class Game:
         self.voted_players.clear()
 
     def joinGame(self, name):
+        clean_name = name.strip()
+        if not clean_name:
+            raise ValueError("Enter a valid nickname")
         if self.state != GameState.LOBBY:
             raise ValueError("Cannot join a game already in progress")
 
-        for i in self.players:
-            if(i.name==name):
-                raise Exception("Players must have unique names and colours")
+        for player in self.players:
+            if player.name.casefold() == clean_name.casefold():
+                raise ValueError("That name is already taken")
 
-        self.players.append(Player(name, self._new_colour(), self.MAX_INK))
+        self.players.append(Player(clean_name, self._new_colour(), self.MAX_INK))
 
     def resetInk(self):
         for player in self.players:

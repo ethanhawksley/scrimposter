@@ -497,7 +497,7 @@ function updateBriefingCard(localState, isImposter) {
       <button type="button" id="toggle-prompt-peek" class="btn-ink btn-ink-ghost btn-ink-sm">${isPromptPeeked ? "Hide" : "Reveal"}</button>
     </div>
     <div id="briefing-secret" class="briefing-secret" ${isPromptPeeked ? "" : "hidden"}>
-      <span class="tag-pill ${isImposter ? "is-role-imposter" : "is-role-good"}">${isImposter ? "Imposter &middot; Clue" : "Secret word"}</span>
+      <span class="tag-pill ${isImposter ? "is-role-imposter" : "is-role-good"}">${isImposter ? "Imposter: Clue" : "Secret word"}</span>
       <p class="briefing-prompt">${escapeHtml(localState.promptData.prompt ?? "")}</p>
     </div>
   `;

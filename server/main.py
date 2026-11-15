@@ -57,7 +57,10 @@ def create_room(
     colour: int = 1
 ):
     room_code = generate_lobby_code()
-    active_lobbies[room_code] = Game(player_id, colour)
+    try:
+        active_lobbies[room_code] = Game(player_id, colour)
+    except ValueError as error:
+        return JSONResponse({"message": str(error)}, status_code=400)
     return {"lobby_code": room_code, "message": "Lobby created"}
 
 @app.post("/rooms/{room_code}/join")
@@ -133,65 +136,114 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
         await websocket.close(code=1008)
         return
 
-    pending = pending_leaves.pop((room_code, player_id), None)
-    if pending:
-        pending.cancel()
+    clean_id = player_id.strip()
+    if not clean_id or len(clean_id) > 24:
+        await send_error(websocket, "invalid_name", "Enter a valid nickname")
+        await websocket.close(code=1008)
+        return
 
-    connections[room_code][player_id].add(websocket)
-    await send_event(websocket, "connection_ready", {"room_code": room_code})
-    await send_snapshot(websocket, game, player_id, room_code)
+    joined = False
+    async with room_locks[room_code]:
+        active_same_name = any(
+            pid.casefold() == clean_id.casefold() and sockets
+            for pid, sockets in connections.get(room_code, {}).items()
+        )
+        if active_same_name:
+            await send_error(websocket, "name_taken", "That name is already taken")
+            await websocket.close(code=1008)
+            return
+
+        existing_player = next(
+            (p for p in game.players if p.name.casefold() == clean_id.casefold()),
+            None,
+        )
+        if existing_player is not None:
+            if existing_player.name != clean_id:
+                await send_error(websocket, "name_taken", "That name is already taken")
+                await websocket.close(code=1008)
+                return
+            pending = pending_leaves.pop((room_code, clean_id), None)
+            if pending:
+                pending.cancel()
+            connections[room_code][clean_id].add(websocket)
+            joined = True
+            await send_event(websocket, "connection_ready", {"room_code": room_code})
+            await send_snapshot(websocket, game, clean_id, room_code)
+        else:
+            if game.state != GameState.LOBBY:
+                await send_error(websocket, "game_in_progress", "Cannot join a game already in progress")
+                await websocket.close(code=1008)
+                return
+            await send_event(websocket, "connection_ready", {"room_code": room_code})
 
     try:
         while True:
             message = await websocket.receive_json()
-            await handle_command(room_code, player_id, websocket, message)
+            result = await handle_command(room_code, clean_id, websocket, message, joined)
+            if result is None:
+                return
+            joined = result
     except WebSocketDisconnect:
         async with room_locks[room_code]:
-            connections[room_code][player_id].discard(websocket)
-            still_connected = bool(connections[room_code][player_id])
-            if not still_connected:
-                del connections[room_code][player_id]
-            if not connections[room_code]:
+            if clean_id in connections.get(room_code, {}):
+                connections[room_code][clean_id].discard(websocket)
+                still_connected = bool(connections[room_code][clean_id])
+                if not still_connected:
+                    del connections[room_code][clean_id]
+            else:
+                still_connected = False
+            if room_code in connections and not connections[room_code]:
                 del connections[room_code]
-            if not still_connected and player_id in {player.name for player in game.players}:
+            if (
+                joined
+                and not still_connected
+                and clean_id in {player.name for player in game.players}
+            ):
                 if game.state == GameState.LOBBY:
-                    game.leaveGame(player_id)
+                    game.leaveGame(clean_id)
                     if not game.players:
                         active_lobbies.pop(room_code, None)
                     else:
                         await broadcast_snapshot(room_code, game)
                 else:
-                    key = (room_code, player_id)
+                    key = (room_code, clean_id)
                     old = pending_leaves.pop(key, None)
                     if old:
                         old.cancel()
                     pending_leaves[key] = asyncio.create_task(
-                        delayed_leave(room_code, player_id, game)
+                        delayed_leave(room_code, clean_id, game)
                     )
 
 
 async def handle_command(
-    room_code: str, player_id: str, websocket: WebSocket, message: Any
+    room_code: str, player_id: str, websocket: WebSocket, message: Any, joined: bool = True
 ):
     if not isinstance(message, dict) or not isinstance(message.get("type"), str):
         await send_error(websocket, "invalid_message", "Expected a message type")
-        return
+        return joined
 
     game = active_lobbies.get(room_code)
     if game is None:
         await send_error(websocket, "invalid_room", "Room does not exist")
-        return
+        return joined
 
     command = message["type"]
     payload = message.get("payload") or {}
     if not isinstance(payload, dict):
         await send_error(websocket, "invalid_message", "Payload must be an object")
-        return
+        return joined
 
     async with room_locks[room_code]:
         try:
             if command == "join_room":
+                if joined and player_id in {p.name for p in game.players}:
+                    await send_snapshot(websocket, game, player_id, room_code)
+                    return True
                 game.joinGame(player_id)
+                connections[room_code][player_id].add(websocket)
+                joined = True
+            elif not joined:
+                raise ValueError("You must join the room first")
             elif command == "toggle_code_visibility":
                 game.toggleCodeVisibility(player_id)
             elif command == "start_game":
@@ -226,16 +278,20 @@ async def handle_command(
                 game.leaveGame(player_id)
             else:
                 await send_error(websocket, "unknown_command", command)
-                return
+                return joined
         except (AttributeError, KeyError, ValueError) as error:
             await send_error(websocket, "command_rejected", str(error))
-            return
+            if not joined and command == "join_room":
+                await websocket.close(code=1008)
+                return None
+            return joined
 
         await broadcast_snapshot(room_code, game)
         if command == "leave_game":
             if not game.players:
                 active_lobbies.pop(room_code, None)
             await send_event(websocket, "leave_complete", {})
+        return joined
 
 
 async def send_snapshot(
