@@ -124,7 +124,23 @@ function getBackendLocation() {
     };
 }
 
+function setJoinPending(pending) {
+    const joinBtn = document.getElementById("joinRoomBtn");
+    if (joinBtn) {
+        joinBtn.disabled = Boolean(pending);
+    }
+}
+
+function cancelPendingLeave() {
+    if (leaveTimer) {
+        clearTimeout(leaveTimer);
+        leaveTimer = null;
+    }
+    leavingGame = false;
+}
+
 function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = false) {
+    cancelPendingLeave();
     currentRoom = roomCode;
     currentPlayer = playerId;
     stateListener = onState;
@@ -143,17 +159,27 @@ function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = fal
     websocket = socket;
 
     socket.addEventListener("open", () => {
+        if (socket.__replaced || socket !== websocket) {
+            return;
+        }
         if (joinOnConnect) {
             joinRoom();
         }
     });
 
     socket.addEventListener("message", (event) => {
+        if (socket.__replaced || socket !== websocket) {
+            return;
+        }
         const message = JSON.parse(event.data);
-        if (leavingGame && message.type === "state") {
+        if (leavingGame) {
+            if (message.type === "leave_complete" || message.type === "error") {
+                finishLeavingGame();
+            }
             return;
         }
         if (message.type === "state" && stateListener) {
+            setJoinPending(false);
             const sequence = message.payload.sequence ?? 0;
             if (sequence >= latestSequence) {
                 latestSequence = sequence;
@@ -163,20 +189,28 @@ function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = fal
                 stateListener(message.payload.game, sequence);
             }
         } else if (onEvent) {
+            if (message.type === "error") {
+                setJoinPending(false);
+            }
             onEvent(message);
         } else if (message.type === "error") {
+            setJoinPending(false);
             console.error(`${message.payload.code}: ${message.payload.message}`);
         }
     });
 
     socket.addEventListener("error", (event) => {
+        if (socket.__replaced || socket !== websocket) {
+            return;
+        }
         console.error("WebSocket error:", event);
     });
 
     socket.addEventListener("close", () => {
-        if (socket.__replaced || leavingGame) {
+        if (socket.__replaced || socket !== websocket || leavingGame) {
             return;
         }
+        setJoinPending(false);
         const menuEl = document.getElementById("menu");
         const statusEl = document.getElementById("connectionStatus");
         if (menuEl && menuEl.hidden) {
@@ -248,6 +282,7 @@ function returnToMainMenu() {
 }
 
 function showMainMenu() {
+    setJoinPending(false);
     const dlg = document.getElementById("role-dialog");
     if (dlg?.open) {
         dlg.close();
@@ -278,6 +313,9 @@ function finishLeavingGame() {
 }
 
 function CodeEnter() {
+    if (document.getElementById("joinRoomBtn")?.disabled) {
+        return;
+    }
     const codeEl = document.getElementById("codeText");
     const nameEl = document.getElementById("nameText");
     const code = codeEl.value.trim();
@@ -294,8 +332,14 @@ function CodeEnter() {
     }
     nameEl.value = name;
     saveNickname(name);
+    setJoinPending(true);
     setConnectionStatus("Joining room...", true);
-    connectToRoom(code, name, window.renderGameState, window.handleGameEvent, true);
+    try {
+        connectToRoom(code, name, window.renderGameState, window.handleGameEvent, true);
+    } catch (error) {
+        setJoinPending(false);
+        setConnectionStatus(error?.message || "Could not connect to that room.");
+    }
 }
 
 async function createRoom(rawName) {
@@ -312,6 +356,12 @@ async function createRoom(rawName) {
     }
     saveNickname(name);
     clearInviteParamFromUrl();
+    cancelPendingLeave();
+    if (websocket) {
+        websocket.__replaced = true;
+        websocket.close();
+        websocket = null;
+    }
     if (createBtn) {
         createBtn.disabled = true;
     }

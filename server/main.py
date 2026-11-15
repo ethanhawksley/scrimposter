@@ -185,6 +185,13 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
                 return
             joined = result
     except WebSocketDisconnect:
+        pass
+    except Exception:
+        try:
+            await websocket.close(code=1011)
+        except Exception:
+            pass
+    finally:
         async with room_locks[room_code]:
             if clean_id in connections.get(room_code, {}):
                 connections[room_code][clean_id].discard(websocket)
@@ -198,6 +205,7 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
             if (
                 joined
                 and not still_connected
+                and active_lobbies.get(room_code) is game
                 and clean_id in {player.name for player in game.players}
             ):
                 if game.state in (GameState.LOBBY, GameState.RESULTS):

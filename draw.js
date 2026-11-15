@@ -8,7 +8,18 @@ let lastActionKey = null;
 let lastBriefingKey = null;
 let drawingController = null;
 
+function closeRoleDialog() {
+  const dlg = document.getElementById("role-dialog");
+  if (!dlg) return;
+  if (dlg.open) {
+    dlg.close();
+  } else if (dlg.hasAttribute("open")) {
+    dlg.removeAttribute("open");
+  }
+}
+
 export function resetView() {
+  closeRoleDialog();
   viewMode = null;
   isPromptPeeked = false;
   lastRenderedImageSrc = null;
@@ -34,6 +45,10 @@ export function draw(state, localState) {
       errBanner.textContent = "";
       errBanner.classList.remove("is-info");
     }
+  }
+
+  if (state.state === "lobby" || state.state === "results") {
+    closeRoleDialog();
   }
 
   if (state.state === "lobby") {
