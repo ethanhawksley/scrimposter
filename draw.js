@@ -63,7 +63,6 @@ function renderLobbyView(state, localState) {
           <h2 class="section-title">Room lobby</h2>
           <div class="code-box">
             <div class="code-digits" id="lobby-code-digits"></div>
-            <p class="code-caption" id="lobby-code-caption"></p>
           </div>
           <div class="lobby-actions" id="lobby-code-actions"></div>
           <div class="lobby-actions lobby-start-row" id="lobby-start-actions"></div>
@@ -81,41 +80,24 @@ function renderLobbyView(state, localState) {
 
   const digitsEl = document.getElementById("lobby-code-digits");
   if (digitsEl) {
-    digitsEl.textContent = state.code_visible ? String(state.room_code ?? "") : "••••••";
-  }
-
-  const captionEl = document.getElementById("lobby-code-caption");
-  if (captionEl) {
-    captionEl.hidden = state.code_visible;
-    captionEl.textContent = state.code_visible ? "" : "Code hidden";
+    digitsEl.textContent = String(state.room_code ?? "");
   }
 
   const codeActionsEl = document.getElementById("lobby-code-actions");
-  if (codeActionsEl) {
-    codeActionsEl.innerHTML = `
-      ${state.code_visible ? `<button type="button" id="copy-code" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Code</button>` : ""}
-      ${isHost && canControlLobby ? `<button type="button" id="toggle-code-visibility" class="btn-ink btn-ink-secondary btn-ink-sm" data-lock-on-submit>${state.code_visible ? "Hide" : "Show"} Code</button>` : ""}
-    `;
-    if (state.code_visible) {
-      document.getElementById("copy-code")?.addEventListener("click", async () => {
-        const btn = document.getElementById("copy-code");
-        try {
-          await navigator.clipboard?.writeText(String(state.room_code ?? ""));
-          if (btn) {
-            btn.textContent = "Copied";
-            setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy Code"; }, 1400);
-          }
-        } catch {
-          if (btn) btn.textContent = "Copy failed";
+  if (codeActionsEl && !codeActionsEl.querySelector("#copy-code")) {
+    codeActionsEl.innerHTML = `<button type="button" id="copy-code" class="btn-ink btn-ink-secondary btn-ink-sm">Copy Code</button>`;
+    document.getElementById("copy-code")?.addEventListener("click", async () => {
+      const btn = document.getElementById("copy-code");
+      try {
+        await navigator.clipboard?.writeText(document.getElementById("lobby-code-digits")?.textContent ?? "");
+        if (btn) {
+          btn.textContent = "Copied";
+          setTimeout(() => { if (btn.isConnected) btn.textContent = "Copy Code"; }, 1400);
         }
-      });
-    }
-    if (isHost && canControlLobby) {
-      document.getElementById("toggle-code-visibility")?.addEventListener("click", (e) => {
-        e.currentTarget.disabled = true;
-        toggleCodeVisibility();
-      });
-    }
+      } catch {
+        if (btn) btn.textContent = "Copy failed";
+      }
+    });
   }
 
   const startActionsEl = document.getElementById("lobby-start-actions");
