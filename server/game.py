@@ -93,12 +93,12 @@ class Game:
                 "role": "imposter",
                 "prompt": self.possibleClues[self.promptIndex],
                 "title": "You are the imposter",
-                "description": "Blend in while drawing. Work out the secret word before the civillians find you.",
+                "description": "Blend in while drawing. Work out the secret word before the civilians find you.",
             }
         return {
             "role": "good",
             "prompt": self.possiblePrompts[self.promptIndex],
-            "title": "You are a civillian",
+            "title": "You are a civilian",
             "description": "Draw the secret word and identify the imposter.",
         }
 
