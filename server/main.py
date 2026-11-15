@@ -1,9 +1,16 @@
-from fastapi import FastAPI
-from game import Player, Game
+import asyncio
+from collections import defaultdict
+from typing import Any
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from game import Game
 from random import randint
 
 app = FastAPI()
 active_lobbies: dict[str, Game] = {}
+connections: dict[str, dict[str, set[WebSocket]]] = defaultdict(lambda: defaultdict(set))
+room_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+room_sequences: dict[str, int] = defaultdict(int)
 
 @app.get("/")
 def read_root():
@@ -86,6 +93,111 @@ def vote(
 ):
     active_lobbies[room_code].voteFor(target_id)
     return {"message": f"Voted for {target_id}"}
+
+
+@app.websocket("/ws/{room_code}")
+async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
+    await websocket.accept()
+    game = active_lobbies.get(room_code)
+    if game is None:
+        await send_error(websocket, "invalid_room", "Room does not exist")
+        await websocket.close(code=1008)
+        return
+
+    connections[room_code][player_id].add(websocket)
+    await send_event(websocket, "connection_ready", {"room_code": room_code})
+    await send_snapshot(websocket, game, player_id)
+
+    try:
+        while True:
+            message = await websocket.receive_json()
+            await handle_command(room_code, player_id, websocket, message)
+    except WebSocketDisconnect:
+        connections[room_code][player_id].discard(websocket)
+        if not connections[room_code][player_id]:
+            del connections[room_code][player_id]
+        if not connections[room_code]:
+            del connections[room_code]
+
+
+async def handle_command(
+    room_code: str, player_id: str, websocket: WebSocket, message: Any
+):
+    if not isinstance(message, dict) or not isinstance(message.get("type"), str):
+        await send_error(websocket, "invalid_message", "Expected a message type")
+        return
+
+    game = active_lobbies.get(room_code)
+    if game is None:
+        await send_error(websocket, "invalid_room", "Room does not exist")
+        return
+
+    command = message["type"]
+    payload = message.get("payload") or {}
+    if not isinstance(payload, dict):
+        await send_error(websocket, "invalid_message", "Payload must be an object")
+        return
+
+    async with room_locks[room_code]:
+        try:
+            if command == "join_room":
+                game.joinGame(player_id)
+            elif command == "start_game":
+                game.startGame(player_id)
+            elif command == "request_prompt":
+                prompt = game.givePrompt(player_id)
+                await send_event(websocket, "prompt", {"prompt": prompt})
+            elif command == "submit_turn":
+                image = payload.get("image")
+                if not isinstance(image, str) or not image.startswith("data:image/"):
+                    raise ValueError("image must be a data URL")
+                if len(image) > 2_000_000:
+                    raise ValueError("image is too large")
+                game.submitTurn(player_id, image)
+            elif command == "vote":
+                target = payload.get("target")
+                if not isinstance(target, str):
+                    raise ValueError("target must be a player name")
+                game.voteFor(target)
+            else:
+                await send_error(websocket, "unknown_command", command)
+                return
+        except (AttributeError, KeyError, ValueError) as error:
+            await send_error(websocket, "command_rejected", str(error))
+            return
+
+        await broadcast_snapshot(room_code, game)
+
+
+async def send_snapshot(websocket: WebSocket, game: Game, player_id: str):
+    await send_event(websocket, "state", {
+        "player_id": player_id,
+        "sequence": 0,
+        "game": game.publicSummary(),
+    })
+
+
+async def broadcast_snapshot(room_code: str, game: Game):
+    room_sequences[room_code] += 1
+    recipients = [
+        socket
+        for player_sockets in connections[room_code].values()
+        for socket in player_sockets
+    ]
+    for socket in recipients:
+        await send_event(socket, "state", {
+            "player_id": "",
+            "sequence": room_sequences[room_code],
+            "game": game.publicSummary(),
+        })
+
+
+async def send_event(websocket: WebSocket, event_type: str, payload: dict):
+    await websocket.send_json({"type": event_type, "payload": payload})
+
+
+async def send_error(websocket: WebSocket, code: str, message: str):
+    await send_event(websocket, "error", {"code": code, "message": message})
 
 # Utilities
 

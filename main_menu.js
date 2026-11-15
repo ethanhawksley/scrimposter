@@ -1,99 +1,80 @@
 let websocket = null;
-const WS_URL = "ws://localhost:3000/";
-let url = "127.0.0.1:8000"
+let currentRoom = null;
+let currentPlayer = null;
+let stateListener = null;
+let latestSequence = -1;
 
-function webSocketTest() {
-    if (websocket && websocket.readyState === WebSocket.OPEN) {
-        console.log("Already connected.");
-        return;
+function connectToRoom(roomCode, playerId, onState, onEvent) {
+    currentRoom = roomCode;
+    currentPlayer = playerId;
+    stateListener = onState;
+    latestSequence = -1;
+
+    if (websocket) {
+        websocket.close();
     }
 
-    if (websocket && websocket.readyState === WebSocket.CONNECTING) {
-        console.log("Connection already in progress.");
-        return;
-    }
-
-    websocket = new WebSocket(WS_URL);
-
-    websocket.addEventListener("open", () => {
-        console.log("CONNECTED");
-        updateConnectionStatus("Connected");
-    });
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const developmentHost = ["0.0.0.0", "127.0.0.1", "localhost"]
+        .includes(window.location.hostname);
+    const host = developmentHost
+        ? `${window.location.hostname === "0.0.0.0" ? "127.0.0.1" : window.location.hostname}:8000`
+        : window.location.host;
+    websocket = new WebSocket(
+        `${protocol}//${host}/ws/${encodeURIComponent(roomCode)}?player_id=${encodeURIComponent(playerId)}`
+    );
 
     websocket.addEventListener("message", (event) => {
-        console.log("Received:", event.data);
-        try {
-            const data = JSON.parse(event.data);
-            handleServerMessage(data);
-        } catch (error) {
-            console.error("Invalid JSON received:", error);
+        const message = JSON.parse(event.data);
+        if (message.type === "state" && stateListener) {
+            const sequence = message.payload.sequence ?? 0;
+            if (sequence >= latestSequence) {
+                latestSequence = sequence;
+                stateListener(message.payload.game);
+            }
+        } else if (onEvent) {
+            onEvent(message);
+        } else if (message.type === "error") {
+            console.error(`${message.payload.code}: ${message.payload.message}`);
         }
     });
 
     websocket.addEventListener("error", (event) => {
         console.error("WebSocket error:", event);
-        updateConnectionStatus("Error");
-    });
-
-    websocket.addEventListener("close", (event) => {
-        console.log("WebSocket closed:", event.code, event.reason);
-        updateConnectionStatus("Disconnected");
     });
 }
 
-async function createRoom(userID, colour_in){
-    let response = await fetch(url + '/rooms', {
-        method: "POST",
-        playerId: userID,
-        colour: colour_in
-    })
-    console.log("Room" + response["lobby_code"] + "Created")
-}
- 
-async function joinRoom(room_code_in, userID, colour_in){
-    let response = await fetch(url + '/rooms/' + room_code_in + '/join', {
-        method: "POST",
-        room_code: room_code_in,
-        playerId: userID,
-        colour: colour_in
-    })
+function sendCommand(type, payload = {}) {
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+        throw new Error("The game connection is not open");
+    }
+    websocket.send(JSON.stringify({ type, payload }));
 }
 
-async function startGame(room_code_in, userID){
-    let response = await fetch(url + '/games', {
-        method: "POST",
-        room_code: room_code_in,
-        playerId: userID,
-    })
+function joinRoom() {
+    sendCommand("join_room");
 }
 
-async function get_turn(room_code_in){
-    let response = await fetch(url + '/games/', {
-        method: "POST",
-        room_code: room_code_in,
-    })
+function startGame() {
+    sendCommand("start_game");
 }
 
-async function get_game_info(room_code_in){
-    let response = await fetch(url + '/games/' + room_code_in + '/info', {
-        method: "POST",
-        room_code: room_code_in
-    })
+function requestPrompt() {
+    sendCommand("request_prompt");
 }
 
-async function get_prompt(room_code_in, userID){
-    let response = await fetch(url + '/games/' + room_code_in + '/prompt', {
-        method: 'POST',
-        room_code: room_code_in,
-        playerId: userID
-    })
+function submitTurn(image) {
+    sendCommand("submit_turn", { image });
 }
 
-async function vote(room_code_in, userID){
-    let response = await fetch(url + '/games/' + room_code_in + '/prompt', {
-        method: 'POST',
-        room_code: room_code_in,
-        targetId: userID
-    })
+function vote(target) {
+    sendCommand("vote", { target });
 }
 
+window.connectToRoom = connectToRoom;
+window.sendCommand = sendCommand;
+window.joinRoom = joinRoom;
+window.startGame = startGame;
+window.requestPrompt = requestPrompt;
+window.submitTurn = submitTurn;
+window.vote = vote;

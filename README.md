@@ -15,3 +15,23 @@ Backend:
 - Python (uv)
   - FastAPI for networking
   - Game flow
+
+## Realtime protocol
+
+FastAPI owns the game and serves a WebSocket at
+`/ws/{room_code}?player_id=<player name>`. Clients send JSON commands and receive
+room-scoped `state`, `prompt`, `connection_ready`, and `error` events.
+
+Commands use this shape:
+
+```json
+{"type": "start_game", "payload": {}}
+{"type": "submit_turn", "payload": {"image": "data:image/png;base64,..."}}
+{"type": "vote", "payload": {"target": "player name"}}
+```
+
+Successful mutations are followed by a `state` event. Prompts are sent only to
+the requesting player, while the public state never contains the imposter.
+State events include a room sequence number so clients can ignore stale
+messages after reconnecting.
+Drawing data URLs are limited to 2 MB for the initial implementation.

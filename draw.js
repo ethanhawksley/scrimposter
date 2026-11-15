@@ -1,5 +1,3 @@
-let url = "127.0.0.1:8000"
-
 export function draw(state, localState, roomCode, userID) {
   const isTurn = state.turn === localState.name;
 
@@ -19,15 +17,9 @@ ${isTurn && '<button id="finish-drawing">Finish Drawing</button>'}
 
   if (isTurn) {
     enableDrawing(state, localState, canvas, ctx);
-    document.getElementById('finish-drawing').addEventListener('click', async () => {
+    document.getElementById('finish-drawing').addEventListener('click', () => {
       const pngUrl = canvas.toDataURL('image/png');
-
-      let response = await fetch(url + `/games/${roomCode}/turn`, {
-        method: "POST",
-        playerId: userID,
-        image: pngUrl,
-      })
-
+      submitTurn(pngUrl);
       console.log(pngUrl);
     });
   }
