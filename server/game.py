@@ -40,7 +40,7 @@ class Game:
         self.players.append(self.host)
         self.imposter: Optional[Player] = None
         self.turn = 0
-        self.possiblePrompts = ["A lighthouse"]
+        self.possiblePrompts = ["Lighthouse"]
         self.possibleClues = ["It guides ships at night"]
         self.promptIndex = -1
         self.state = GameState.LOBBY
