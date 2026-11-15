@@ -220,6 +220,8 @@ class Game:
         if self.returned_players:
             raise ValueError("All players must return to the lobby before starting a new game")
         if self.state == GameState.LOBBY:
+            random.shuffle(self.players)
+            self.turn = 0
             self.imposter = random.choice(self.players)
             self.votes.clear()
             self.voted_players.clear()
