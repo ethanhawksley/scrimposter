@@ -163,6 +163,15 @@ class Game:
             raise ValueError("Only the host may change lobby code visibility")
         self.code_visible = not self.code_visible
 
+    def kickPlayer(self, requested_by, target_name):
+        if requested_by != self.host.name:
+            raise ValueError("Only the host may kick players")
+        if target_name == self.host.name:
+            raise ValueError("The host cannot kick themselves")
+        if not any(player.name == target_name for player in self.players):
+            raise ValueError("Player is not in the room")
+        self.leaveGame(target_name)
+
     def guessPrompt(self, player_name, guess):
         if self.state != GameState.IMPOSTER_GUESS:
             raise ValueError("The imposter may only guess after being voted out")

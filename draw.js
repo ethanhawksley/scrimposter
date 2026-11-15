@@ -97,6 +97,12 @@ function renderLobbyView(state, localState) {
         </section>
       </div>
     `;
+    document.getElementById("lobby-player-list")?.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-kick-target]");
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      kickPlayer(btn.dataset.kickTarget);
+    });
   }
 
   const isHost = state.host === localState.name;
@@ -189,6 +195,9 @@ function renderLobbyView(state, localState) {
     listEl.innerHTML = state.players.map((player) => {
       const isSelf = player.name === localState.name;
       const isRoomHost = player.name === state.host;
+      const kickBtn = isHost && !isSelf
+        ? `<button type="button" class="btn-ink btn-ink-ghost btn-ink-sm btn-kick" data-lock-on-submit data-kick-target="${escapeHtml(player.name)}">Kick</button>`
+        : "";
       return `
         <li class="player-row">
           <span class="player-identity">
@@ -196,7 +205,7 @@ function renderLobbyView(state, localState) {
             <span class="player-name">${escapeHtml(player.name)}</span>
             ${isSelf ? `<span class="you-label">(you)</span>` : ""}
           </span>
-          ${isRoomHost ? `<span class="player-tags">${crownIcon}</span>` : ""}
+          ${isRoomHost || kickBtn ? `<span class="player-tags">${isRoomHost ? crownIcon : ""}${kickBtn}</span>` : ""}
         </li>
       `;
     }).join("");
@@ -233,6 +242,12 @@ function renderGameView(state, localState) {
         </aside>
       </div>
     `;
+    document.getElementById("ink-panel")?.addEventListener("click", (event) => {
+      const btn = event.target.closest("[data-kick-target]");
+      if (!btn || btn.disabled) return;
+      btn.disabled = true;
+      kickPlayer(btn.dataset.kickTarget);
+    });
     const canvas = document.getElementById("canvas");
     drawingController = createCanvasController(canvas, () => {
       const undoBtn = document.getElementById("undo-stroke");
@@ -608,11 +623,15 @@ function updateBriefingCard(localState, isImposter) {
 function updatePlayersInkPanel(state, localState) {
   const panel = document.getElementById("ink-panel");
   if (!panel) return;
+  const isHost = state.host === localState.name;
   panel.innerHTML = state.players.map((player) => {
     const isDrawingNow = state.state === "draw" && player.name === state.turn;
     const isSelf = player.name === localState.name;
     const playerVoted = (state.state === "vote" && (state.voted_players?.includes(player.name) ?? false))
       || (state.state === "guess_check" && (state.guess_checked_players?.includes(player.name) ?? false));
+    const kickBtn = isHost && !isSelf
+      ? `<button type="button" class="btn-ink btn-ink-ghost btn-ink-sm btn-kick" data-lock-on-submit data-kick-target="${escapeHtml(player.name)}">Kick</button>`
+      : "";
     return `
       <div class="ink-player ${isDrawingNow ? "is-active" : ""}" ${isDrawingNow ? `style="border-left-color:${escapeHtml(player.colour)}"` : ""}>
         <div class="ink-player-head">
@@ -621,7 +640,7 @@ function updatePlayersInkPanel(state, localState) {
             <strong class="player-name">${escapeHtml(player.name)}</strong>
             ${isSelf ? `<span class="you-label">(you)</span>` : ""}
           </span>
-          ${playerVoted ? `<span class="player-tags"><span class="tag-pill is-voted">${state.state === "guess_check" ? "Checked" : "Voted"}</span></span>` : ""}
+          ${playerVoted || kickBtn ? `<span class="player-tags">${playerVoted ? `<span class="tag-pill is-voted">${state.state === "guess_check" ? "Checked" : "Voted"}</span>` : ""}${kickBtn}</span>` : ""}
         </div>
       </div>
     `;

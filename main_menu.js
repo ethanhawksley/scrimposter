@@ -172,6 +172,13 @@ function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = fal
             return;
         }
         const message = JSON.parse(event.data);
+        if (message.type === "kicked") {
+            const kickMsg = message.payload?.message || "You were removed from the room by the host.";
+            finishLeavingGame();
+            showMainMenu();
+            setConnectionStatus(kickMsg);
+            return;
+        }
         if (leavingGame) {
             if (message.type === "leave_complete" || message.type === "error") {
                 finishLeavingGame();
@@ -265,6 +272,10 @@ function checkGuess(accepted) {
 
 function returnToLobby() {
     sendCommand("return_lobby");
+}
+
+function kickPlayer(target) {
+    sendCommand("kick_player", { target });
 }
 
 function returnToMainMenu() {
@@ -414,6 +425,7 @@ window.vote = vote;
 window.guessPrompt = guessPrompt;
 window.checkGuess = checkGuess;
 window.returnToLobby = returnToLobby;
+window.kickPlayer = kickPlayer;
 window.returnToMainMenu = returnToMainMenu;
 window.finishLeavingGame = finishLeavingGame;
 window.isLeavingGame = () => leavingGame;

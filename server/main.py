@@ -285,6 +285,14 @@ async def handle_command(
                 game.checkGuess(player_id, accepted)
             elif command == "return_lobby":
                 game.returnPlayerToLobby(player_id)
+            elif command == "kick_player":
+                target = payload.get("target")
+                if not isinstance(target, str):
+                    raise ValueError("target must be a player name")
+                game.kickPlayer(player_id, target)
+                pending = pending_leaves.pop((room_code, target), None)
+                if pending:
+                    pending.cancel()
             elif command == "leave_game":
                 pending = pending_leaves.pop((room_code, player_id), None)
                 if pending:
@@ -300,7 +308,18 @@ async def handle_command(
                 return None
             return joined
 
+        kicked_sockets = (
+            connections.get(room_code, {}).pop(payload.get("target"), set())
+            if command == "kick_player"
+            else set()
+        )
         await broadcast_snapshot(room_code, game)
+        for kicked_socket in list(kicked_sockets):
+            try:
+                await send_event(kicked_socket, "kicked", {"message": "You were removed from the room by the host."})
+                await kicked_socket.close(code=1008)
+            except Exception:
+                pass
         if command == "leave_game":
             if not game.players:
                 active_lobbies.pop(room_code, None)
