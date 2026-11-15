@@ -438,7 +438,7 @@ function updatePlayersInkPanel(state, localState) {
   const panel = document.getElementById("ink-panel");
   const titleEl = document.getElementById("players-card-title");
   if (!panel) return;
-  const showInk = state.state !== "draw" && state.state !== "prompt";
+  const showInk = state.state !== "draw" && state.state !== "prompt" && state.state !== "vote";
   if (titleEl) {
     titleEl.textContent = showInk ? "Players & ink" : "Players";
   }
