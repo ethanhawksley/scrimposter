@@ -1,3 +1,4 @@
+const MIN_DRAW_INK = 40;
 let viewMode = null;
 let isPromptPeeked = false;
 let lastRenderedImageSrc = null;
@@ -317,13 +318,14 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
     if (isTurn) {
       const used = drawingController.getInkUsed();
       const remaining = Math.max(0, activeMax - used);
-      const pct = Math.max(0, Math.min(100, (remaining * 100) / (activeMax || 1)));
-      const stateClass = remaining <= 0 ? "is-empty" : pct <= 25 ? "is-low" : "";
+      const outOfInk = remaining < MIN_DRAW_INK;
+      const pct = outOfInk ? 0 : Math.max(0, Math.min(100, (remaining * 100) / (activeMax || 1)));
+      const stateClass = outOfInk ? "is-empty" : pct <= 25 ? "is-low" : "";
       toolbarEl.innerHTML = `
         <div class="ink-meter-wrap">
           <div class="ink-meter-head">
             <span class="toolbar-colour"><span class="ink-swatch" style="background:${escapeHtml(localState.colour)}"></span>Ink</span>
-            <span class="ink-meter-label" data-active-ink-label>${remaining <= 0 ? "Out of ink" : `${Math.floor(pct)}%`}</span>
+            <span class="ink-meter-label" data-active-ink-label>${outOfInk ? "Out of ink" : `${Math.floor(pct)}%`}</span>
           </div>
           <div class="ink-bar-track">
             <div class="ink-bar-fill ${stateClass}" data-active-ink-fill style="width:${pct}%"></div>
@@ -332,7 +334,7 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
         <div class="canvas-actions">
           <button type="button" id="undo-stroke" class="btn-ink btn-ink-secondary btn-ink-sm" ${drawingController.getUndoCount() === 0 ? "disabled" : ""}>Undo</button>
           <button type="button" id="clear-turn" class="btn-ink btn-ink-secondary btn-ink-sm" ${used === 0 ? "disabled" : ""}>Clear</button>
-          <button type="button" id="finish-drawing" class="btn-ink btn-ink-primary ${remaining <= 0 ? "is-ink-empty" : ""}" data-lock-on-submit>Finish Drawing</button>
+          <button type="button" id="finish-drawing" class="btn-ink btn-ink-primary ${outOfInk ? "is-ink-empty" : ""}" data-lock-on-submit>Finish Drawing</button>
         </div>
       `;
       document.getElementById("undo-stroke")?.addEventListener("click", () => drawingController.undo());
@@ -666,17 +668,18 @@ function createCanvasController(canvas, onInkChange) {
 
   function updateInkMeters() {
     const remaining = Math.max(0, maxInk - usedInk);
-    const pct = Math.max(0, Math.min(100, (remaining * 100) / (maxInk || 1)));
+    const outOfInk = remaining < MIN_DRAW_INK;
+    const pct = outOfInk ? 0 : Math.max(0, Math.min(100, (remaining * 100) / (maxInk || 1)));
     const activeLabel = document.querySelector("[data-active-ink-label]");
     const activeFill = document.querySelector("[data-active-ink-fill]");
     const finishBtn = document.getElementById("finish-drawing");
-    if (activeLabel) activeLabel.textContent = remaining <= 0 ? "Out of ink" : `${Math.floor(pct)}%`;
+    if (activeLabel) activeLabel.textContent = outOfInk ? "Out of ink" : `${Math.floor(pct)}%`;
     if (activeFill) {
       activeFill.style.width = `${pct}%`;
-      activeFill.classList.toggle("is-empty", remaining <= 0);
-      activeFill.classList.toggle("is-low", remaining > 0 && pct <= 25);
+      activeFill.classList.toggle("is-empty", outOfInk);
+      activeFill.classList.toggle("is-low", !outOfInk && pct <= 25);
     }
-    if (finishBtn) finishBtn.classList.toggle("is-ink-empty", remaining <= 0);
+    if (finishBtn) finishBtn.classList.toggle("is-ink-empty", outOfInk);
     onInkChange?.();
   }
 
@@ -750,7 +753,7 @@ function createCanvasController(canvas, onInkChange) {
   }
 
   canvas.addEventListener("pointerdown", (event) => {
-    if (!canDraw || !baseImageReady) return;
+    if (!canDraw || !baseImageReady || maxInk - usedInk < MIN_DRAW_INK) return;
     if (event.button !== undefined && event.button !== 0 && event.pointerType === "mouse") return;
     event.preventDefault();
     canvas.setPointerCapture?.(event.pointerId);
