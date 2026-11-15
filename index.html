@@ -2,124 +2,193 @@
 <html lang="en">
 
 <head>
-  <script src="main_menu.js"></script>
   <meta charset="utf-8" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
   <title>Scrimposter</title>
-  <meta content="Scrimposter" name="description" />
+  <meta content="Scrimposter: a collaborative drawing and deduction game." name="description" />
+  <meta content="light" name="color-scheme" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,700&family=JetBrains+Mono:wght@500;700&display=swap" />
   <link href="style.css" rel="stylesheet" />
-  <link href="https://scrimposter.hawksley.dev/" rel="canonical" />
-  <meta content="light dark" name="color-scheme" />
-  <meta content="website" property="og:type" />
-  <meta content="https://scrimposter.hawksley.dev/" property="og:url" />
-  <meta content="Scrimposter" property="og:title" />
-  <meta content="Scrimposter" property="og:description" />
-  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/css/bootstrap.min.css">
-  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
-  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.4.1/js/bootstrap.min.js"></script>
+  <script src="main_menu.js"></script>
 </head>
 
 <body>
-  <h1>Scrimposter</h1>
-  <div id="app"></div>
+  <main class="app-shell">
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+            <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+            <path d="M2 2l7.586 7.586"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">Scrimposter</h1>
+          <p class="brand-tag">Draw together. Spot the imposter.</p>
+        </div>
+      </div>
+      <div id="header-actions"></div>
+    </header>
+
+    <div id="app"></div>
+
+    <section id="menu" class="menu-wrap" aria-label="Game menu">
+      <div class="card-paper">
+        <h2 class="section-title">Join or host</h2>
+        <div class="field-group">
+          <label class="field-label" for="nameText">Nickname</label>
+          <input class="input-ink" id="nameText" type="text" maxlength="24" autocomplete="nickname" placeholder="e.g. Alex" />
+        </div>
+        <button type="button" id="createRoomBtn" class="btn-ink btn-ink-primary btn-full">Create Room</button>
+        <div class="menu-divider"><span>or join with a code</span></div>
+        <div class="join-row">
+          <input class="input-ink input-code" id="codeText" type="text" inputmode="numeric" maxlength="6" autocomplete="off" placeholder="000000" aria-label="6-digit room code" />
+          <button type="button" id="joinRoomBtn" class="btn-ink btn-ink-secondary">Join Room</button>
+        </div>
+        <p id="connectionStatus" class="status-banner" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="role-dialog" class="role-dialog" aria-labelledby="role-dialog-title"></dialog>
+
   <script type="module">
-    import { draw } from './draw.js';
+    import { draw, resetView, escapeHtml } from "./draw.js";
+
     let promptRequested = false;
     let introShown = false;
-    let localRole = 'unknown';
+    let localRole = "unknown";
+    let localPrompt = null;
+    let latestGameState = null;
+
+    const roleDialog = document.getElementById("role-dialog");
+    const nameInput = document.getElementById("nameText");
+    const codeInput = document.getElementById("codeText");
+
+    document.getElementById("createRoomBtn")?.addEventListener("click", () => createRoom(nameInput.value));
+    document.getElementById("joinRoomBtn")?.addEventListener("click", () => CodeEnter());
+    codeInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        CodeEnter();
+      }
+    });
+    nameInput?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        createRoom(nameInput.value);
+      }
+    });
+    roleDialog?.addEventListener("click", (event) => {
+      if (event.target === roleDialog) {
+        roleDialog.close();
+      }
+    });
+
+    window.resetGameView = () => {
+      promptRequested = false;
+      introShown = false;
+      localRole = "unknown";
+      localPrompt = null;
+      latestGameState = null;
+      resetView();
+    };
 
     window.renderGameState = (state) => {
       if (window.isLeavingGame?.()) {
         return;
       }
-      document.getElementById('menu').hidden = true;
-      const player = state.players.find(
-        (candidate) => candidate.name === document.getElementById('nameText').value.trim(),
-      );
-      if (state.state === 'prompt' && !promptRequested) {
+      latestGameState = state;
+      const statusEl = document.getElementById("connectionStatus");
+      if (statusEl) {
+        statusEl.textContent = "";
+        statusEl.classList.remove("is-info");
+      }
+      document.getElementById("menu").hidden = true;
+      const localName = window.getCurrentPlayer?.() || nameInput.value.trim();
+      const player = state.players.find((candidate) => candidate.name === localName);
+      if (state.state === "prompt" && !promptRequested) {
         promptRequested = true;
         requestPrompt();
-      } else if (state.state === 'lobby') {
+      } else if (state.state === "lobby") {
         promptRequested = false;
         introShown = false;
-        localRole = 'unknown';
+        localRole = "unknown";
+        localPrompt = null;
       }
       draw(state, {
-        name: document.getElementById('nameText').value.trim(),
-        colour: player?.colour ?? '#000000',
+        name: localName,
+        colour: player?.colour ?? "#1e1b18",
         role: localRole,
-        audioMuted: false,
+        promptData: localPrompt,
       });
     };
 
     window.handleGameEvent = (message) => {
-      if (message.type === 'error') {
-        document.getElementById('connectionStatus').textContent =
-          message.payload.message;
+      if (message.type === "error") {
+        const msgText = message.payload?.message || "Action failed.";
+        const gameBanner = document.getElementById("game-error-banner");
+        const statusEl = document.getElementById("connectionStatus");
+        if (gameBanner && document.getElementById("menu")?.hidden) {
+          gameBanner.textContent = msgText;
+          gameBanner.hidden = false;
+        } else if (statusEl) {
+          statusEl.classList.remove("is-info");
+          statusEl.textContent = msgText;
+        }
+        document.querySelectorAll("[data-lock-on-submit]").forEach((btn) => {
+          btn.disabled = false;
+        });
         if (window.isLeavingGame?.()) {
           window.finishLeavingGame();
         }
-      } else if (message.type === 'prompt') {
-        const prompt = message.payload?.prompt?.role
-          ? message.payload.prompt
-          : message.payload;
-        localRole = prompt.role ?? 'unknown';
+      } else if (message.type === "prompt") {
+        const prompt = message.payload?.prompt?.role ? message.payload.prompt : message.payload;
+        localRole = prompt.role ?? "unknown";
+        localPrompt = prompt;
         if (!introShown) {
           introShown = true;
           showPrompt(prompt);
         }
-      } else if (message.type === 'leave_complete') {
+        if (latestGameState && !window.isLeavingGame?.()) {
+          window.renderGameState(latestGameState);
+        }
+      } else if (message.type === "leave_complete") {
         window.finishLeavingGame();
       }
     };
 
     window.showPrompt = (payload = {}) => {
-      const title = payload.title ?? (payload.role === 'imposter'
-        ? 'You are the imposter'
-        : 'You are a good player');
-      const description = payload.description ?? 'Read your role and complete your objective.';
-      const prompt = payload.prompt ?? 'No prompt was provided.';
-      document.getElementById('game-modal-container').innerHTML = `
-        <div class="modal fade game-modal" id="role-intro-modal" tabindex="-1"
-             role="dialog" aria-labelledby="role-intro-modal-title">
-          <div class="modal-dialog modal-dialog-centered" role="document">
-            <div class="modal-content">
-              <div class="modal-header">
-                <h2 class="modal-title" id="role-intro-modal-title">${escapeModalText(title)}</h2>
-              </div>
-              <div class="modal-body">
-                <p>${escapeModalText(description)}</p>
-                <p class="lead"><strong>${escapeModalText(prompt)}</strong></p>
-              </div>
-              <div class="modal-footer">
-                <button type="button" class="btn btn-primary" data-dismiss="modal">Continue</button>
-              </div>
+      if (!roleDialog) return;
+      const isImposter = payload.role === "imposter";
+      const title = payload.title ?? (isImposter ? "You are the imposter" : "You are a good player");
+      const prompt = payload.prompt ?? "No prompt was provided.";
+      roleDialog.innerHTML = `
+        <div class="role-dialog-card">
+          <div class="role-dialog-head">
+            <h2 class="section-title role-dialog-title" id="role-dialog-title">${escapeHtml(title)}</h2>
+          </div>
+          <div class="role-dialog-body">
+            <div class="briefing-secret">
+              <span class="tag-pill ${isImposter ? "is-role-imposter" : "is-role-good"}">${isImposter ? "Clue" : "Secret word"}</span>
+              <p class="briefing-prompt">${escapeHtml(prompt)}</p>
             </div>
           </div>
+          <div class="role-dialog-foot">
+            <button type="button" id="role-dialog-close" class="btn-ink btn-ink-primary">Got it</button>
+          </div>
         </div>`;
-      $('#role-intro-modal').modal({ backdrop: 'static', keyboard: false });
-      $('#role-intro-modal').on('hidden.bs.modal', () => {
-        document.getElementById('game-modal-container').replaceChildren();
-      });
+      document.getElementById("role-dialog-close")?.addEventListener("click", () => roleDialog.close());
+      if (typeof roleDialog.showModal === "function") {
+        if (!roleDialog.open) roleDialog.showModal();
+      } else {
+        roleDialog.setAttribute("open", "");
+      }
     };
-
-    function escapeModalText(value) {
-      const element = document.createElement('div');
-      element.textContent = String(value);
-      return element.innerHTML;
-    }
   </script>
-  <div id="menu">
-    <p>Enter Name:</p>
-    <input id="nameText" type="text">
-    <br>
-    <p>Enter Room Code:</p>
-    <input id="codeText" type="text" inputmode="numeric">
-    <button type="button" onclick="CodeEnter()">Join Room</button>
-    <button type="button" onclick="createRoom(document.getElementById('nameText').value)">Create Room</button>
-    <p id="connectionStatus" role="status"></p>
-  </div>
-  <div id="game-modal-container"></div>
 </body>
 
 </html>
