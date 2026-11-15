@@ -21,51 +21,46 @@
   <div id="app"></div>
   <script type="module">
     import { draw } from './draw.js';
-    // Game Screens = "main_menu","lobby","draw","vote","results"
-    let state = {
-      players: [
-        {
-          name: 'John',
-          colour: '#ff0000',
-          role: 'imposter',
-          isAlive: true,
-        },
-        {
-          name: 'Mary',
-          colour: '#00ffff',
-          role: 'civillian',
-          isAlive: true,
-        },
-      ],
-      turn: 'John',
-      host: 'John',
-      word: 'Football',
-      clue: 'A ball',
-      image: new Image(),
+    let promptRequested = false;
+
+    window.renderGameState = (state) => {
+      document.getElementById('menu').hidden = true;
+      const player = state.players.find(
+        (candidate) => candidate.name === document.getElementById('nameText').value.trim(),
+      );
+      if (state.state === 'prompt' && !promptRequested) {
+        promptRequested = true;
+        requestPrompt();
+      } else if (state.state !== 'prompt') {
+        promptRequested = false;
+      }
+      draw(state, {
+        name: document.getElementById('nameText').value.trim(),
+        colour: player?.colour ?? '#000000',
+        audioMuted: false,
+      });
     };
 
-    state.image.src = './smile.jpg';
-
-    let localState = {
-      name: 'John',
-      colour: '#ff0000',
-      role: 'imposter',
-      isAlive: true,
-      audioMuted: false,
-    };
-
-    // For testing, immediately render the "draw" screen
-    state.image.onload = () => {
-      draw(state, localState);
+    window.handleGameEvent = (message) => {
+      if (message.type === 'error') {
+        document.getElementById('connectionStatus').textContent =
+          message.payload.message;
+      } else if (message.type === 'prompt') {
+        document.getElementById('connectionStatus').textContent =
+          `Your prompt: ${message.payload.prompt}`;
+      }
     };
   </script>
-  <p>Enter Name:</p>
-  <textarea id="nameText"></textarea>
-  <br>
-  <p>Enter Room Code:</p>
-  <textarea id="codeText"></textarea>
-  <button type="button" onclick="CodeEnter()">Submit Code</button>
-  <button type="button" onclick="createRoom(document.getElementById('nameText').value)">Create Room</button>
+  <div id="menu">
+    <p>Enter Name:</p>
+    <input id="nameText" type="text">
+    <br>
+    <p>Enter Room Code:</p>
+    <input id="codeText" type="text" inputmode="numeric">
+    <button type="button" onclick="CodeEnter()">Join Room</button>
+    <button type="button" onclick="createRoom(document.getElementById('nameText').value)">Create Room</button>
+    <p id="connectionStatus" role="status"></p>
+  </div>
 </body>
 
 </html>

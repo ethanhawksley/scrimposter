@@ -4,7 +4,7 @@ let currentPlayer = null;
 let stateListener = null;
 let latestSequence = -1;
 
-function connectToRoom(roomCode, playerId, onState, onEvent) {
+function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = false) {
     currentRoom = roomCode;
     currentPlayer = playerId;
     stateListener = onState;
@@ -24,13 +24,19 @@ function connectToRoom(roomCode, playerId, onState, onEvent) {
         `${protocol}//${host}/ws/${encodeURIComponent(roomCode)}?player_id=${encodeURIComponent(playerId)}`
     );
 
+    websocket.addEventListener("open", () => {
+        if (joinOnConnect) {
+            joinRoom();
+        }
+    });
+
     websocket.addEventListener("message", (event) => {
         const message = JSON.parse(event.data);
         if (message.type === "state" && stateListener) {
             const sequence = message.payload.sequence ?? 0;
             if (sequence >= latestSequence) {
                 latestSequence = sequence;
-                stateListener(message.payload.game);
+                stateListener(message.payload.game, sequence);
             }
         } else if (onEvent) {
             onEvent(message);
@@ -74,7 +80,7 @@ function vote(target) {
 function CodeEnter() {
     const code = document.getElementById('codeText').value.trim();
     const name = document.getElementById('nameText').value.trim();
-    connectToRoom(code, name);
+    connectToRoom(code, name, window.renderGameState, window.handleGameEvent, true);
 }
 
 async function createRoom(name) {
@@ -92,6 +98,12 @@ async function createRoom(name) {
     }
 
     document.getElementById("codeText").value = data.lobby_code;
+    connectToRoom(
+        data.lobby_code,
+        name,
+        window.renderGameState,
+        window.handleGameEvent,
+    );
     return data.lobby_code;
 }
 

@@ -1,26 +1,52 @@
 export function draw(state, localState, roomCode, userID) {
-  const isTurn = state.turn === localState.name;
+  const isLobby = state.state === 'lobby';
+  const isTurn = !isLobby && state.turn === localState.name;
+  const isHost = state.host === localState.name;
+  const heading = isLobby
+    ? 'Lobby'
+    : state.state === 'prompt'
+      ? 'Game starting'
+      : isTurn
+        ? 'Your turn'
+        : `${state.turn}'s turn`;
 
   const html = `
-<h2>${isTurn ? 'Your turn' : state.turn + '\'s turn'}</h2>
-<ol>${state.players.map(player => `<li style='color:${player.colour};${player.name === state.turn && 'text-decoration:underline;'}'>${player.name}</li>`).join('')}</ol>
-<canvas id="canvas" width="400" height="400"></canvas>
-${isTurn && '<button id="finish-drawing">Finish Drawing</button>'}
+<h2>${heading}</h2>
+<p>Players</p>
+<ol>${state.players.map(player => `<li style='color:${player.colour};${player.name === state.turn && 'text-decoration:underline;'}'>${player.name}${player.name === state.host ? ' (host)' : ''}</li>`).join('')}</ol>
+${isHost && isLobby ? '<button id="start-game">Start Game</button>' : ''}
+${isLobby ? '' : '<canvas id="canvas" width="400" height="400"></canvas>'}
+${isTurn ? '<button id="finish-drawing">Finish Drawing</button>' : ''}
   `;
 
   document.getElementById('app').innerHTML = html;
 
+  if (isHost && isLobby) {
+    document.getElementById('start-game').addEventListener('click', () => {
+      document.getElementById('start-game').disabled = true;
+      startGame();
+    });
+  }
+
+  if (isLobby) {
+    return;
+  }
+
   const canvas = document.getElementById('canvas');
   const ctx = canvas.getContext('2d');
 
-  ctx.drawImage(state.image, 0, 0);
+  if (state.latest_image) {
+    const image = new Image();
+    image.onload = () => ctx.drawImage(image, 0, 0);
+    image.src = state.latest_image;
+  }
 
   if (isTurn) {
     enableDrawing(state, localState, canvas, ctx);
     document.getElementById('finish-drawing').addEventListener('click', () => {
+      document.getElementById('finish-drawing').disabled = true;
       const pngUrl = canvas.toDataURL('image/png');
       submitTurn(pngUrl);
-      console.log(pngUrl);
     });
   }
 }
