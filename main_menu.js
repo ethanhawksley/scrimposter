@@ -3,6 +3,7 @@ let currentRoom = null;
 let currentPlayer = null;
 let stateListener = null;
 let latestSequence = -1;
+let leavingGame = false;
 
 function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = false) {
     currentRoom = roomCode;
@@ -32,6 +33,9 @@ function connectToRoom(roomCode, playerId, onState, onEvent, joinOnConnect = fal
 
     websocket.addEventListener("message", (event) => {
         const message = JSON.parse(event.data);
+        if (leavingGame && message.type === "state") {
+            return;
+        }
         if (message.type === "state" && stateListener) {
             const sequence = message.payload.sequence ?? 0;
             if (sequence >= latestSequence) {
@@ -81,6 +85,47 @@ function vote(target) {
     sendCommand("vote", { target });
 }
 
+function guessPrompt(guess) {
+    sendCommand("guess_prompt", { guess });
+}
+
+function returnToLobby() {
+    sendCommand("return_lobby");
+}
+
+function returnToMainMenu() {
+    if (leavingGame) {
+        return;
+    }
+    leavingGame = true;
+    showMainMenu();
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        sendCommand("leave_game");
+    }
+    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+        finishLeavingGame();
+    }
+}
+
+function showMainMenu() {
+    if (window.jQuery) {
+        window.jQuery(".modal").modal("hide");
+    }
+    document.querySelectorAll(".modal-backdrop").forEach((backdrop) => backdrop.remove());
+    document.body.classList.remove("modal-open");
+    document.body.style.removeProperty("padding-right");
+    document.getElementById("app").replaceChildren();
+    document.getElementById("menu").hidden = false;
+}
+
+function finishLeavingGame() {
+    if (websocket && websocket.readyState !== WebSocket.CLOSED) {
+        websocket.close();
+    }
+    websocket = null;
+    leavingGame = false;
+}
+
 function CodeEnter() {
     const code = document.getElementById('codeText').value.trim();
     const name = document.getElementById('nameText').value.trim();
@@ -119,3 +164,8 @@ window.toggleCodeVisibility = toggleCodeVisibility;
 window.requestPrompt = requestPrompt;
 window.submitTurn = submitTurn;
 window.vote = vote;
+window.guessPrompt = guessPrompt;
+window.returnToLobby = returnToLobby;
+window.returnToMainMenu = returnToMainMenu;
+window.finishLeavingGame = finishLeavingGame;
+window.isLeavingGame = () => leavingGame;

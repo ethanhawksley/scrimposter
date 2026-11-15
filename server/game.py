@@ -9,6 +9,7 @@ class GameState(Enum):
     DRAW = 2
     VOTE = 3
     RESULTS = 4
+    IMPOSTER_GUESS = 5
 
 class Player:
     def __init__(self, name, colour):
@@ -21,8 +22,8 @@ class Game:
         self.players = [self.host]
         self.imposter: Optional[Player] = None
         self.turn = 0
-        self.possiblePrompts = ["semi-colon"]
-        self.possibleClues = ["punctuation"]
+        self.possiblePrompts = ["A lighthouse"]
+        self.possibleClues = ["It guides ships at night"]
         self.promptIndex = -1
         self.state = GameState.LOBBY
         self.code_visible = False
@@ -32,6 +33,7 @@ class Game:
         self.promptsGiven = 0
         self.round_submissions = 0
         self.submittedTurns: list[str] = []
+        self.returned_players: set[str] = set()
 
     def whoseTurn(self):
         if(self.state != GameState.LOBBY):
@@ -47,13 +49,23 @@ class Game:
         if(self.promptIndex == -1):
            self.promptIndex = randint(0, len(self.possiblePrompts)-1)
 
-        self.promptsGiven+=1
+        self.promptsGiven += 1
         if(self.promptsGiven>=len(self.players)):
             self.state = GameState.DRAW
 
-        if(self.imposter.name == name): #type: ignore
-            return self.possibleClues[self.promptIndex]
-        return self.possiblePrompts[self.promptIndex] #wooo
+        if self.imposter and self.imposter.name == name:
+            return {
+                "role": "imposter",
+                "prompt": self.possibleClues[self.promptIndex],
+                "title": "You are the imposter",
+                "description": "Blend in while drawing. Work out the secret word before the good players find you.",
+            }
+        return {
+            "role": "good",
+            "prompt": self.possiblePrompts[self.promptIndex],
+            "title": "You are a good player",
+            "description": "Draw the secret word and identify the imposter.",
+        }
 
     def initialSummary(self):
         return {
@@ -70,10 +82,11 @@ class Game:
             "latest_image": self.submittedTurns[-1] if self.submittedTurns else None,
         }
 
-    def publicSummary(self):
+    def publicSummary(self, viewer: Optional[str] = None):
         summary = self.initialSummary()
         summary["code_visible"] = self.code_visible
-        summary["state"] = self.state.name.lower()
+        viewer_returned = viewer in self.returned_players
+        summary["state"] = "lobby" if viewer_returned else self.state.name.lower()
         summary["turn"] = (
             self.whoseTurn() if self.state in (GameState.DRAW, GameState.VOTE) else None
         )
@@ -83,6 +96,7 @@ class Game:
         summary["votes_received"] = len(self.voted_players)
         summary["voted_players"] = list(self.voted_players)
         summary["result"] = self.result
+        summary["returned_to_lobby"] = viewer_returned
         return summary
 
     def toggleCodeVisibility(self, player_name):
@@ -90,22 +104,36 @@ class Game:
             raise ValueError("Only the host may change lobby code visibility")
         self.code_visible = not self.code_visible
 
-    def guessPrompt(self, guess):
-        if(self.state == GameState.VOTE):
-            self.state = GameState.LOBBY
-            return guess == self.possiblePrompts[self.promptIndex]
-        else:
-            raise ValueError("Impostor may not guess the prompt until after the vote has finished")
+    def guessPrompt(self, player_name, guess):
+        if self.state != GameState.IMPOSTER_GUESS:
+            raise ValueError("The imposter may only guess after being voted out")
+        if not self.imposter or player_name != self.imposter.name:
+            raise ValueError("Only the imposter may guess the prompt")
+        correct = guess.strip().casefold() == self.possiblePrompts[self.promptIndex].casefold()
+        self.result = {
+            "outcome": "Imposter wins" if correct else "Good players win",
+            "accused": self.imposter.name,
+            "imposter": self.imposter.name,
+            "prompt": self.possiblePrompts[self.promptIndex],
+            "guess": guess,
+            "correct": str(correct).lower(),
+        }
+        self.state = GameState.RESULTS
 
     def startGame(self, startedBy):
         if(startedBy != self.host.name):
             raise ValueError("Only the host may start the game")
+        if self.returned_players:
+            raise ValueError("All players must return to the lobby before starting a new game")
         if (self.state == GameState.LOBBY):
             self.imposter = random.choice(self.players)
             self.votes.clear()
             self.voted_players.clear()
             self.result = None
             self.round_submissions = 0
+            self.promptIndex = -1
+            self.promptsGiven = 0
+            self.returned_players.clear()
             self.state = GameState.PROMPT
         else:
             raise ValueError("startGame may only be called in the lobby")
@@ -129,12 +157,13 @@ class Game:
             self.resolveVotes()
 
     def resolveVotes(self):
-        highest_player_votes = max(
-            (votes for target, votes in self.votes.items() if target != "skip"),
-            default=0,
-        )
+        player_votes = {
+            target: votes for target, votes in self.votes.items() if target != "skip"
+        }
+        highest_player_votes = max(player_votes.values(), default=0)
         skip_votes = self.votes.get("skip", 0)
-        if skip_votes >= highest_player_votes:
+        tied_players = sum(votes == highest_player_votes for votes in player_votes.values())
+        if skip_votes >= highest_player_votes or tied_players > 1:
             self.state = GameState.DRAW
             self.turn = 0
             self.round_submissions = 0
@@ -147,12 +176,20 @@ class Game:
             (target for target in self.votes if target != "skip"),
             key=self.votes.__getitem__,
         )
-        self.state = GameState.RESULTS
-        self.result = {
-            "accused": accused,
-            "imposter": self.imposter.name if self.imposter else "",
-            "correct": str(accused == self.imposter.name).lower(),
-        }
+        if not self.imposter or accused != self.imposter.name:
+            self.result = {
+                "outcome": "Imposter wins",
+                "accused": accused,
+                "imposter": self.imposter.name if self.imposter else "",
+                "prompt": self.possiblePrompts[self.promptIndex],
+                "correct": "false",
+            }
+            self.state = GameState.RESULTS
+            return
+
+        self.state = GameState.IMPOSTER_GUESS
+        self.votes.clear()
+        self.voted_players.clear()
 
     def joinGame(self, name):
 
@@ -162,17 +199,26 @@ class Game:
 
         self.players.append(Player(name, -1))
 
-    def leaveGame(self, name, colour):
-        if(self.state != GameState.LOBBY):
-            raise Exception("May not leave while the game is ongoing")
+    def leaveGame(self, name, colour=None):
         player = next((player for player in self.players if player.name == name), None)
         if player is None:
             raise ValueError("Player is not in the lobby")
         self.players.remove(player)
+        self.returned_players.discard(name)
         if not self.players:
-            raise ValueError("The host cannot leave an empty lobby")
-        if(self.host is player):
+            return
+        if self.host is player:
             self.host = random.choice(self.players)
+        self.turn %= len(self.players)
+        if self.returned_players == {remaining.name for remaining in self.players}:
+            self.returnToLobby()
+
+    def returnPlayerToLobby(self, name):
+        if name not in {player.name for player in self.players}:
+            raise ValueError("Player is not in the game")
+        self.returned_players.add(name)
+        if self.returned_players == {player.name for player in self.players}:
+            self.returnToLobby()
 
     def submitTurn(self, player_id: str, imageString: str):
         if self.state != GameState.DRAW or player_id != self.whoseTurn():
@@ -209,3 +255,16 @@ class Game:
                 winner = (i,j)
 
         return winner[0]
+
+    def returnToLobby(self):
+        self.state = GameState.LOBBY
+        self.imposter = None
+        self.promptIndex = -1
+        self.promptsGiven = 0
+        self.round_submissions = 0
+        self.submittedTurns.clear()
+        self.votes.clear()
+        self.voted_players.clear()
+        self.result = None
+        self.turn = 0
+        self.returned_players.clear()

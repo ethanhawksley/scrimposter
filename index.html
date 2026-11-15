@@ -25,8 +25,13 @@
   <script type="module">
     import { draw } from './draw.js';
     let promptRequested = false;
+    let introShown = false;
+    let localRole = 'unknown';
 
     window.renderGameState = (state) => {
+      if (window.isLeavingGame?.()) {
+        return;
+      }
       document.getElementById('menu').hidden = true;
       const player = state.players.find(
         (candidate) => candidate.name === document.getElementById('nameText').value.trim(),
@@ -34,12 +39,15 @@
       if (state.state === 'prompt' && !promptRequested) {
         promptRequested = true;
         requestPrompt();
-      } else if (state.state !== 'prompt') {
+      } else if (state.state === 'lobby') {
         promptRequested = false;
+        introShown = false;
+        localRole = 'unknown';
       }
       draw(state, {
         name: document.getElementById('nameText').value.trim(),
         colour: player?.colour ?? '#000000',
+        role: localRole,
         audioMuted: false,
       });
     };
@@ -48,11 +56,58 @@
       if (message.type === 'error') {
         document.getElementById('connectionStatus').textContent =
           message.payload.message;
+        if (window.isLeavingGame?.()) {
+          window.finishLeavingGame();
+        }
       } else if (message.type === 'prompt') {
-        document.getElementById('connectionStatus').textContent =
-          `Your prompt: ${message.payload.prompt}`;
+        const prompt = message.payload?.prompt?.role
+          ? message.payload.prompt
+          : message.payload;
+        localRole = prompt.role ?? 'unknown';
+        if (!introShown) {
+          introShown = true;
+          showPrompt(prompt);
+        }
+      } else if (message.type === 'leave_complete') {
+        window.finishLeavingGame();
       }
     };
+
+    window.showPrompt = (payload = {}) => {
+      const title = payload.title ?? (payload.role === 'imposter'
+        ? 'You are the imposter'
+        : 'You are a good player');
+      const description = payload.description ?? 'Read your role and complete your objective.';
+      const prompt = payload.prompt ?? 'No prompt was provided.';
+      document.getElementById('game-modal-container').innerHTML = `
+        <div class="modal fade game-modal" id="role-intro-modal" tabindex="-1"
+             role="dialog" aria-labelledby="role-intro-modal-title">
+          <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h2 class="modal-title" id="role-intro-modal-title">${escapeModalText(title)}</h2>
+              </div>
+              <div class="modal-body">
+                <p>${escapeModalText(description)}</p>
+                <p class="lead"><strong>${escapeModalText(prompt)}</strong></p>
+              </div>
+              <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-dismiss="modal">Continue</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      $('#role-intro-modal').modal({ backdrop: 'static', keyboard: false });
+      $('#role-intro-modal').on('hidden.bs.modal', () => {
+        document.getElementById('game-modal-container').replaceChildren();
+      });
+    };
+
+    function escapeModalText(value) {
+      const element = document.createElement('div');
+      element.textContent = String(value);
+      return element.innerHTML;
+    }
   </script>
   <div id="menu">
     <p>Enter Name:</p>
@@ -64,6 +119,7 @@
     <button type="button" onclick="createRoom(document.getElementById('nameText').value)">Create Room</button>
     <p id="connectionStatus" role="status"></p>
   </div>
+  <div id="game-modal-container"></div>
 </body>
 
 </html>

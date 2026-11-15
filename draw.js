@@ -1,7 +1,10 @@
 export function draw(state, localState, roomCode, userID) {
+  closeActiveGameModal();
   const isLobby = state.state === 'lobby';
   const isTurn = !isLobby && state.turn === localState.name;
   const isHost = state.host === localState.name;
+  const canControlLobby = isLobby && !state.returned_to_lobby;
+  const isImposter = localState.role === 'imposter';
   const hasVoted = state.voted_players?.includes(localState.name) ?? false;
   const heading = isLobby
     ? 'Lobby'
@@ -11,17 +14,19 @@ export function draw(state, localState, roomCode, userID) {
         ? 'Vote for the imposter'
         : state.state === 'results'
           ? 'Round results'
+            : state.state === 'imposter_guess'
+              ? 'The imposter must guess'
       : isTurn
         ? 'Your turn'
         : `${state.turn}'s turn`;
-  const codeControls = isHost
+  const codeControls = isHost && canControlLobby
     ? `<button id="toggle-code-visibility">${state.code_visible ? 'Hide' : 'Show'} Lobby Code</button>`
     : '';
   const visibleCode = state.code_visible
     ? `<p>Lobby code: <strong>${state.room_code}</strong></p>`
     : '';
   const voteChoices = state.players
-    .map(player => `<button class="vote-choice" data-vote-target="${escapeHtml(player.name)}">${escapeHtml(player.name)}</button>`)
+    .map(player => `<button class="btn btn-primary vote-choice" data-vote-target="${escapeHtml(player.name)}">${escapeHtml(player.name)}</button>`)
     .join('');
 
   const html = `
@@ -30,31 +35,78 @@ ${visibleCode}
 ${codeControls}
 <p>Players</p>
 <ol>${state.players.map(player => `<li style='color:${player.colour};${player.name === state.turn && 'text-decoration:underline;'}'>${player.name}${player.name === state.host ? ' (host)' : ''}</li>`).join('')}</ol>
-${isHost && isLobby ? '<button id="start-game">Start Game</button>' : ''}
+${isHost && canControlLobby ? '<button id="start-game">Start Game</button>' : ''}
+${state.returned_to_lobby ? '<p>Waiting for the other players to return to the lobby...</p>' : ''}
 ${isLobby ? '' : '<canvas id="canvas" width="400" height="400"></canvas>'}
 ${state.state === 'vote' ? `
-<div class="vote-backdrop">
-  <section class="vote-modal" role="dialog" aria-labelledby="vote-title">
-    <h3 id="vote-title">Who is the imposter?</h3>
-    <div class="vote-grid">${voteChoices}</div>
-    <button class="vote-choice vote-skip" data-vote-target="skip">Skip and draw again</button>
-    ${hasVoted ? '<p>Vote submitted. Waiting for the other players...</p>' : ''}
-  </section>
+<div class="modal fade game-modal" id="game-modal" tabindex="-1" role="dialog" aria-labelledby="vote-title">
+  <div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
+    <div class="modal-header"><h3 class="modal-title" id="vote-title">Who is the imposter?</h3></div>
+    <div class="modal-body">
+      <p>Choose one player. A tie counts as a skip.</p>
+      <div class="vote-grid">${voteChoices}</div>
+      <button class="btn btn-default vote-choice vote-skip" data-vote-target="skip">Skip and draw again</button>
+      ${hasVoted ? '<p class="vote-waiting">Vote submitted. Waiting for the other players...</p>' : ''}
+    </div>
+  </div></div>
 </div>` : ''}
-${state.state === 'results' && state.result ? `<p>${state.result.accused} was accused. Imposter: ${state.result.imposter}.</p>` : ''}
+${state.state === 'imposter_guess' && isImposter ? `
+<div class="modal fade game-modal" id="game-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
+    <div class="modal-header"><h3 class="modal-title">Guess the secret word</h3></div>
+    <div class="modal-body"><input class="form-control" id="prompt-guess" type="text" autocomplete="off"></div>
+    <div class="modal-footer"><button class="btn btn-primary" id="submit-guess">Submit guess</button></div>
+  </div></div>
+</div>` : ''}
+${state.state === 'imposter_guess' && !isImposter ? `
+<div class="modal fade game-modal" id="game-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
+    <div class="modal-header"><h3 class="modal-title">The imposter is guessing</h3></div>
+    <div class="modal-body"><p>Wait while the imposter tries to identify the secret word.</p></div>
+  </div></div>
+</div>` : ''}
+${state.state === 'results' && state.result ? `
+<div class="modal fade game-modal" id="game-modal" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-dialog-centered" role="document"><div class="modal-content">
+    <div class="modal-header"><h3 class="modal-title">${escapeHtml(state.result.outcome ?? 'Game over')}</h3></div>
+    <div class="modal-body">
+      <p>The prompt was <strong>${escapeHtml(state.result.prompt ?? 'Unknown')}</strong>.</p>
+      <p>The imposter was <strong>${escapeHtml(state.result.imposter ?? 'Unknown')}</strong>.</p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="return-lobby">Return to lobby</button>
+      <button class="btn btn-default" id="return-menu">Main menu</button>
+    </div>
+  </div></div>
+</div>` : ''}
 ${isTurn ? '<button id="finish-drawing">Finish Drawing</button>' : ''}
   `;
 
   document.getElementById('app').innerHTML = html;
 
-  if (isHost) {
+  const modal = document.getElementById('game-modal');
+  if (modal && window.jQuery) {
+    window.jQuery(modal).modal({ backdrop: 'static', keyboard: false });
+  }
+
+  function closeActiveGameModal() {
+    const activeModal = document.querySelector('#app .game-modal');
+    if (activeModal && window.jQuery) {
+      window.jQuery(activeModal).modal('hide');
+    }
+    document.querySelectorAll('.modal-backdrop').forEach(backdrop => backdrop.remove());
+    document.body.classList.remove('modal-open');
+    document.body.style.removeProperty('padding-right');
+  }
+
+  if (isHost && canControlLobby) {
     document.getElementById('toggle-code-visibility').addEventListener('click', () => {
       document.getElementById('toggle-code-visibility').disabled = true;
       toggleCodeVisibility();
     });
   }
 
-  if (isHost && isLobby) {
+  if (isHost && canControlLobby) {
     document.getElementById('start-game').addEventListener('click', () => {
       document.getElementById('start-game').disabled = true;
       startGame();
@@ -93,6 +145,20 @@ ${isTurn ? '<button id="finish-drawing">Finish Drawing</button>' : ''}
         vote(button.dataset.voteTarget);
       });
     });
+  }
+
+  if (state.state === 'imposter_guess' && isImposter) {
+    document.getElementById('submit-guess').addEventListener('click', () => {
+      const guess = document.getElementById('prompt-guess').value.trim();
+      if (!guess) return;
+      document.getElementById('submit-guess').disabled = true;
+      guessPrompt(guess);
+    });
+  }
+
+  if (state.state === 'results') {
+    document.getElementById('return-lobby').addEventListener('click', returnToLobby);
+    document.getElementById('return-menu').addEventListener('click', returnToMainMenu);
   }
 }
 

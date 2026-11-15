@@ -122,11 +122,20 @@ async def game_socket(websocket: WebSocket, room_code: str, player_id: str):
             message = await websocket.receive_json()
             await handle_command(room_code, player_id, websocket, message)
     except WebSocketDisconnect:
-        connections[room_code][player_id].discard(websocket)
-        if not connections[room_code][player_id]:
-            del connections[room_code][player_id]
-        if not connections[room_code]:
-            del connections[room_code]
+        should_broadcast = False
+        async with room_locks[room_code]:
+            connections[room_code][player_id].discard(websocket)
+            if not connections[room_code][player_id]:
+                del connections[room_code][player_id]
+                if player_id in {player.name for player in game.players}:
+                    game.leaveGame(player_id)
+                    should_broadcast = True
+            if not connections[room_code]:
+                del connections[room_code]
+            if not game.players:
+                active_lobbies.pop(room_code, None)
+            elif should_broadcast:
+                await broadcast_snapshot(room_code, game)
 
 
 async def handle_command(
@@ -157,7 +166,7 @@ async def handle_command(
                 game.startGame(player_id)
             elif command == "request_prompt":
                 prompt = game.givePrompt(player_id)
-                await send_event(websocket, "prompt", {"prompt": prompt})
+                await send_event(websocket, "prompt", prompt)
             elif command == "submit_turn":
                 image = payload.get("image")
                 if not isinstance(image, str) or not image.startswith("data:image/"):
@@ -170,6 +179,15 @@ async def handle_command(
                 if not isinstance(target, str):
                     raise ValueError("target must be a player name")
                 game.voteFor(player_id, target)
+            elif command == "guess_prompt":
+                guess = payload.get("guess")
+                if not isinstance(guess, str) or not guess.strip():
+                    raise ValueError("guess must not be empty")
+                game.guessPrompt(player_id, guess)
+            elif command == "return_lobby":
+                game.returnPlayerToLobby(player_id)
+            elif command == "leave_game":
+                game.leaveGame(player_id)
             else:
                 await send_error(websocket, "unknown_command", command)
                 return
@@ -178,12 +196,16 @@ async def handle_command(
             return
 
         await broadcast_snapshot(room_code, game)
+        if command == "leave_game":
+            if not game.players:
+                active_lobbies.pop(room_code, None)
+            await send_event(websocket, "leave_complete", {})
 
 
 async def send_snapshot(
     websocket: WebSocket, game: Game, player_id: str, room_code: str
 ):
-    summary = game.publicSummary()
+    summary = game.publicSummary(player_id)
     summary["room_code"] = room_code
     await send_event(websocket, "state", {
         "player_id": player_id,
@@ -199,14 +221,15 @@ async def broadcast_snapshot(room_code: str, game: Game):
         for player_sockets in connections[room_code].values()
         for socket in player_sockets
     ]
-    for socket in recipients:
-        summary = game.publicSummary()
+    for player_id, player_sockets in connections[room_code].items():
+        summary = game.publicSummary(player_id)
         summary["room_code"] = room_code
-        await send_event(socket, "state", {
-            "player_id": "",
-            "sequence": room_sequences[room_code],
-            "game": summary,
-        })
+        for socket in player_sockets:
+            await send_event(socket, "state", {
+                "player_id": player_id,
+                "sequence": room_sequences[room_code],
+                "game": summary,
+            })
 
 
 async def send_event(websocket: WebSocket, event_type: str, payload: dict):
