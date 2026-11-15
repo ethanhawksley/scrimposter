@@ -1,22 +1,99 @@
-function genRoomCode(){
-    let chars = ["A","B","C","D","E","F","G","H","I","J","K","L","M","N","O","P","Q","R","S","T","U","V","W","X","Y","Z","0","1","2","3","4","5","6","7","8","9"]
-    let code = ""
-    for (let step = 0; step < 6; step++) {
-        code = code + chars[Math.floor(Math.random() * chars.length)]
-    }
-    document.getElementById("CodeGen").innerText = code
-}
+let websocket = null;
+const WS_URL = "ws://localhost:3000/";
+let url = "127.0.0.1:8000"
 
-async function post_code(code, post_url){
-    const response = await fetch(post_url, {
-        method: "POST",
-        headers: {"Content-Type": "text/plain"},
-        body: code
-    });
-    const receivedCode = await response.text();
-    if (!response.ok) {
-        document.getElementById("CodeRec").textContent = `Request failed (${response.status}): ${receivedCode}`;
+function webSocketTest() {
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+        console.log("Already connected.");
         return;
     }
-    document.getElementById("CodeRec").textContent = receivedCode;
+
+    if (websocket && websocket.readyState === WebSocket.CONNECTING) {
+        console.log("Connection already in progress.");
+        return;
+    }
+
+    websocket = new WebSocket(WS_URL);
+
+    websocket.addEventListener("open", () => {
+        console.log("CONNECTED");
+        updateConnectionStatus("Connected");
+    });
+
+    websocket.addEventListener("message", (event) => {
+        console.log("Received:", event.data);
+        try {
+            const data = JSON.parse(event.data);
+            handleServerMessage(data);
+        } catch (error) {
+            console.error("Invalid JSON received:", error);
+        }
+    });
+
+    websocket.addEventListener("error", (event) => {
+        console.error("WebSocket error:", event);
+        updateConnectionStatus("Error");
+    });
+
+    websocket.addEventListener("close", (event) => {
+        console.log("WebSocket closed:", event.code, event.reason);
+        updateConnectionStatus("Disconnected");
+    });
 }
+
+async function createRoom(userID, colour_in){
+    let response = await fetch(url + '/rooms', {
+        method: "POST",
+        playerId: userID,
+        colour: colour_in
+    })
+    console.log("Room" + response["lobby_code"] + "Created")
+}
+ 
+async function joinRoom(room_code_in, userID, colour_in){
+    let response = await fetch(url + '/rooms/' + room_code_in + '/join', {
+        method: "POST",
+        room_code: room_code_in,
+        playerId: userID,
+        colour: colour_in
+    })
+}
+
+async function startGame(room_code_in, userID){
+    let response = await fetch(url + '/games', {
+        method: "POST",
+        room_code: room_code_in,
+        playerId: userID,
+    })
+}
+
+async function get_turn(room_code_in){
+    let response = await fetch(url + '/games/', {
+        method: "POST",
+        room_code: room_code_in,
+    })
+}
+
+async function get_game_info(room_code_in){
+    let response = await fetch(url + '/games/' + room_code_in + '/info', {
+        method: "POST",
+        room_code: room_code_in
+    })
+}
+
+async function get_prompt(room_code_in, userID){
+    let response = await fetch(url + '/games/' + room_code_in + '/prompt', {
+        method: 'POST',
+        room_code: room_code_in,
+        playerId: userID
+    })
+}
+
+async function vote(room_code_in, userID){
+    let response = await fetch(url + '/games/' + room_code_in + '/prompt', {
+        method: 'POST',
+        room_code: room_code_in,
+        targetId: userID
+    })
+}
+

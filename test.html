@@ -4,8 +4,11 @@
 </head>
 <body>
     <p id="CodeGen">Code Generated</p>
-    <p id="CodeRec">Code Recieved</p>
+    <p id="NumPlayers"></p>
+    <br>
+    <p id="Names"></p>
     <button type="button" onclick="genRoomCode()">Gen Code</button>
-    <button type="button" onclick="post_code(document.getElementById('CodeGen').textContent, '/api/room-code')">Send Code Locally</button>
+    <button type="button" onclick="webSocketTest()">Open Websocket</button>
+    <button type="button" onclick="sendMessage('ROOM_CREATED', document.getElementById('CodeGen').innerText)">Create Room</button>
 </body>
 </html>
