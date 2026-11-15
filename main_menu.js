@@ -193,6 +193,10 @@ function guessPrompt(guess) {
     sendCommand("guess_prompt", { guess });
 }
 
+function checkGuess(accepted) {
+    sendCommand("check_guess", { accepted: Boolean(accepted) });
+}
+
 function returnToLobby() {
     sendCommand("return_lobby");
 }
@@ -319,6 +323,7 @@ window.requestPrompt = requestPrompt;
 window.submitTurn = submitTurn;
 window.vote = vote;
 window.guessPrompt = guessPrompt;
+window.checkGuess = checkGuess;
 window.returnToLobby = returnToLobby;
 window.returnToMainMenu = returnToMainMenu;
 window.finishLeavingGame = finishLeavingGame;

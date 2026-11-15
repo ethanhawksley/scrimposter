@@ -241,6 +241,7 @@ function renderGameView(state, localState) {
   const isTurn = state.state === "draw" && state.turn === localState.name;
   const isImposter = localState.role === "imposter";
   const hasVoted = state.voted_players?.includes(localState.name) ?? false;
+  const hasChecked = state.guess_checked_players?.includes(localState.name) ?? false;
   const stageEl = document.getElementById("game-stage");
   if (stageEl) stageEl.dataset.phase = state.state;
   const isPromptPhase = state.state === "prompt";
@@ -257,7 +258,7 @@ function renderGameView(state, localState) {
 
   updateTopbar(state, isTurn, isImposter);
   updateCanvasAndToolbar(state, localState, isTurn);
-  updatePhaseActionCard(state, isImposter, hasVoted);
+  updatePhaseActionCard(state, isImposter, hasVoted, hasChecked);
   updateBriefingCard(localState, isImposter);
   updatePlayersInkPanel(state, localState);
 }
@@ -273,7 +274,9 @@ function updateTopbar(state, isTurn, isImposter) {
         ? "Round results"
         : state.state === "imposter_guess"
           ? (isImposter ? "You were caught" : "Imposter&rsquo;s guess")
-          : isTurn
+          : state.state === "guess_check"
+            ? (isImposter ? "Checking your guess" : "Check the guess")
+            : isTurn
             ? "Your turn to draw"
             : `${escapeHtml(state.turn)}&rsquo;s turn`;
 
@@ -348,7 +351,7 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
   }
 }
 
-function updatePhaseActionCard(state, isImposter, hasVoted) {
+function updatePhaseActionCard(state, isImposter, hasVoted, hasChecked) {
   const card = document.getElementById("phase-action-card");
   if (!card) return;
 
@@ -448,6 +451,63 @@ function updatePhaseActionCard(state, isImposter, hasVoted) {
     return;
   }
 
+  if (state.state === "guess_check") {
+    const key = `guess_check:${isImposter}:${state.imposter_guess ?? ""}:${state.guess_target ?? ""}`;
+    if (lastActionKey !== key) {
+      lastActionKey = key;
+      card.hidden = false;
+      if (isImposter) {
+        card.innerHTML = `
+          <h3 class="section-title phase-card-title">Your guess</h3>
+          <div class="guess-compare guess-compare-single">
+            <div class="result-spotlight-item">
+              <span class="result-label">Submitted guess</span>
+              <span class="result-spotlight-value">${escapeHtml(state.imposter_guess ?? "")}</span>
+            </div>
+          </div>
+          <p class="vote-progress" id="guess-check-progress"></p>
+          <p class="vote-waiting">Waiting for other players...</p>
+        `;
+      } else {
+        card.innerHTML = `
+          <h3 class="section-title phase-card-title">Did they get it?</h3>
+          <div class="guess-compare">
+            <div class="result-spotlight-item">
+              <span class="result-label">Secret word</span>
+              <span class="result-spotlight-value">${escapeHtml(state.guess_target ?? "")}</span>
+            </div>
+            <div class="result-spotlight-item">
+              <span class="result-label">Imposter&rsquo;s guess</span>
+              <span class="result-spotlight-value">${escapeHtml(state.imposter_guess ?? "")}</span>
+            </div>
+          </div>
+          <div class="guess-check-actions">
+            <button type="button" class="btn-ink btn-ink-primary guess-check-btn" data-lock-on-submit data-guess-accept="true">Correct</button>
+            <button type="button" class="btn-ink btn-ink-secondary guess-check-btn" data-lock-on-submit data-guess-accept="false">Incorrect</button>
+          </div>
+          <p class="vote-progress" id="guess-check-progress"></p>
+          <p class="vote-waiting" id="guess-check-waiting" hidden>Waiting for others...</p>
+        `;
+        card.querySelectorAll(".guess-check-btn").forEach((button) => {
+          button.addEventListener("click", () => {
+            card.querySelectorAll(".guess-check-btn").forEach((choice) => { choice.disabled = true; });
+            const waitEl = document.getElementById("guess-check-waiting");
+            if (waitEl) waitEl.hidden = false;
+            checkGuess(button.dataset.guessAccept === "true");
+          });
+        });
+      }
+    }
+    const progressEl = document.getElementById("guess-check-progress");
+    if (progressEl) progressEl.textContent = `${state.guess_checks_received ?? 0} / ${state.guess_checks_total ?? 0} checked`;
+    if (!isImposter) {
+      card.querySelectorAll(".guess-check-btn").forEach((btn) => { btn.disabled = hasChecked; });
+      const waitEl = document.getElementById("guess-check-waiting");
+      if (waitEl) waitEl.hidden = !hasChecked;
+    }
+    return;
+  }
+
   if (state.state === "results" && state.result) {
     const key = `results:${JSON.stringify(state.result)}`;
     if (lastActionKey !== key) {
@@ -529,18 +589,12 @@ function updateBriefingCard(localState, isImposter) {
 
 function updatePlayersInkPanel(state, localState) {
   const panel = document.getElementById("ink-panel");
-  const titleEl = document.getElementById("players-card-title");
   if (!panel) return;
-  const showInk = state.state !== "draw" && state.state !== "prompt" && state.state !== "vote";
-  if (titleEl) {
-    titleEl.textContent = showInk ? "Players & ink" : "Players";
-  }
   panel.innerHTML = state.players.map((player) => {
     const isDrawingNow = state.state === "draw" && player.name === state.turn;
     const isSelf = player.name === localState.name;
-    const playerVoted = state.state === "vote" && (state.voted_players?.includes(player.name) ?? false);
-    const remaining = player.ink_remaining;
-    const pct = Math.max(0, Math.min(100, (remaining / (player.max_ink || 1)) * 100));
+    const playerVoted = (state.state === "vote" && (state.voted_players?.includes(player.name) ?? false))
+      || (state.state === "guess_check" && (state.guess_checked_players?.includes(player.name) ?? false));
     return `
       <div class="ink-player ${isDrawingNow ? "is-active" : ""}" ${isDrawingNow ? `style="border-left-color:${escapeHtml(player.colour)}"` : ""}>
         <div class="ink-player-head">
@@ -549,14 +603,8 @@ function updatePlayersInkPanel(state, localState) {
             <strong class="player-name">${escapeHtml(player.name)}</strong>
             ${isSelf ? `<span class="you-label">(you)</span>` : ""}
           </span>
-          ${playerVoted ? `<span class="player-tags"><span class="tag-pill is-voted">Voted</span></span>` : ""}
+          ${playerVoted ? `<span class="player-tags"><span class="tag-pill is-voted">${state.state === "guess_check" ? "Checked" : "Voted"}</span></span>` : ""}
         </div>
-        ${showInk ? `
-          <div class="ink-bar-track ink-bar-sm" aria-label="${escapeHtml(player.name)} ink remaining">
-            <div class="ink-bar-fill" data-ink-player="${escapeHtml(player.name)}" style="width:${pct}%;background-color:${escapeHtml(player.colour)}"></div>
-          </div>
-          <small class="ink-amount" data-ink-label="${escapeHtml(player.name)}">${remaining} / ${player.max_ink}</small>
-        ` : ""}
       </div>
     `;
   }).join("");

@@ -11,6 +11,7 @@ class GameState(Enum):
     VOTE = 3
     RESULTS = 4
     IMPOSTER_GUESS = 5
+    GUESS_CHECK = 6
 
 class Player:
     def __init__(self, name, colour, max_ink):
@@ -54,6 +55,8 @@ class Game:
         self.votes: dict[str, int] = {}
         self.voted_players: set[str] = set()
         self.result: Optional[dict[str, str]] = None
+        self.imposter_guess: Optional[str] = None
+        self.guess_votes: dict[str, bool] = {}
         self.prompted_players: set[str] = set()
         self.round_submitted_players: set[str] = set()
         self.submittedTurns: list[str] = []
@@ -129,6 +132,30 @@ class Game:
         summary["result"] = self.result
         summary["returned_to_lobby"] = viewer_returned
         summary["status_note"] = self.status_note
+        is_imposter_viewer = bool(self.imposter and viewer == self.imposter.name)
+        judges_total = sum(
+            1 for p in self.players if not self.imposter or p.name != self.imposter.name
+        )
+        summary["imposter_guess"] = (
+            self.imposter_guess if self.state == GameState.GUESS_CHECK else None
+        )
+        summary["guess_target"] = (
+            self.possiblePrompts[self.promptIndex]
+            if self.state == GameState.GUESS_CHECK
+            and self.promptIndex != -1
+            and viewer is not None
+            and not is_imposter_viewer
+            else None
+        )
+        summary["guess_checks_received"] = (
+            len(self.guess_votes) if self.state == GameState.GUESS_CHECK else 0
+        )
+        summary["guess_checks_total"] = (
+            judges_total if self.state == GameState.GUESS_CHECK else 0
+        )
+        summary["guess_checked_players"] = (
+            list(self.guess_votes.keys()) if self.state == GameState.GUESS_CHECK else []
+        )
         return summary
 
     def toggleCodeVisibility(self, player_name):
@@ -141,13 +168,45 @@ class Game:
             raise ValueError("The imposter may only guess after being voted out")
         if not self.imposter or player_name != self.imposter.name:
             raise ValueError("Only the imposter may guess the prompt")
-        correct = guess.strip().casefold() == self.possiblePrompts[self.promptIndex].casefold()
+        clean_guess = guess.strip()
+        if not clean_guess:
+            raise ValueError("Guess must not be empty")
+        self.imposter_guess = clean_guess
+        self.guess_votes.clear()
+        self.status_note = None
+        self.state = GameState.GUESS_CHECK
+
+    def checkGuess(self, voter: str, accepted: bool):
+        if self.state != GameState.GUESS_CHECK:
+            raise ValueError("Players may only check the guess after the imposter guesses")
+        if not any(player.name == voter for player in self.players):
+            raise ValueError("Only players in the game may vote")
+        if self.imposter and voter == self.imposter.name:
+            raise ValueError("The imposter may not judge their own guess")
+        if voter in self.guess_votes:
+            raise ValueError("Each player may only vote once")
+        if not isinstance(accepted, bool):
+            raise ValueError("accepted must be a boolean")
+
+        self.guess_votes[voter] = accepted
+        judges = {
+            player.name
+            for player in self.players
+            if not self.imposter or player.name != self.imposter.name
+        }
+        if len(self.guess_votes) >= len(judges):
+            self.resolveGuessCheck()
+
+    def resolveGuessCheck(self):
+        yes_votes = sum(1 for accepted in self.guess_votes.values() if accepted)
+        no_votes = sum(1 for accepted in self.guess_votes.values() if not accepted)
+        correct = yes_votes >= no_votes
         self.result = {
-            "outcome": "Imposter wins" if correct else "Civillians win",
-            "accused": self.imposter.name,
-            "imposter": self.imposter.name,
+            "outcome": "Imposter wins" if correct else "Good players win",
+            "accused": self.imposter.name if self.imposter else "",
+            "imposter": self.imposter.name if self.imposter else "",
             "prompt": self.possiblePrompts[self.promptIndex],
-            "guess": guess,
+            "guess": self.imposter_guess or "",
             "correct": str(correct).lower(),
         }
         self.status_note = None
@@ -165,6 +224,8 @@ class Game:
             self.votes.clear()
             self.voted_players.clear()
             self.result = None
+            self.imposter_guess = None
+            self.guess_votes.clear()
             self.round_submitted_players.clear()
             self.submittedTurns.clear()
             self.promptIndex = -1
@@ -272,11 +333,12 @@ class Game:
         self.round_submitted_players.discard(name)
         self.voted_players.discard(name)
         self.votes.pop(name, None)
+        self.guess_votes.pop(name, None)
         if not self.players:
             return
         if self.host is player:
             self.host = random.choice(self.players)
-        if self.state in (GameState.PROMPT, GameState.DRAW, GameState.VOTE, GameState.IMPOSTER_GUESS):
+        if self.state in (GameState.PROMPT, GameState.DRAW, GameState.VOTE, GameState.IMPOSTER_GUESS, GameState.GUESS_CHECK):
             if self.imposter is player or len(self.players) < self.MIN_PLAYERS:
                 self.status_note = None
                 self.result = {
@@ -299,6 +361,10 @@ class Game:
         elif self.state == GameState.VOTE:
             if len(self.voted_players) >= len(self.players):
                 self.resolveVotes()
+        elif self.state == GameState.GUESS_CHECK:
+            judges = {p.name for p in self.players if not self.imposter or p.name != self.imposter.name}
+            if len(self.guess_votes) >= len(judges):
+                self.resolveGuessCheck()
         if self.returned_players == {remaining.name for remaining in self.players}:
             self.returnToLobby()
 
@@ -350,6 +416,8 @@ class Game:
         self.votes.clear()
         self.voted_players.clear()
         self.result = None
+        self.imposter_guess = None
+        self.guess_votes.clear()
         self.status_note = None
         self.turn = 0
         self.returned_players.clear()

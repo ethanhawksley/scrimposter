@@ -269,6 +269,11 @@ async def handle_command(
                 if not isinstance(guess, str) or not guess.strip():
                     raise ValueError("guess must not be empty")
                 game.guessPrompt(player_id, guess)
+            elif command == "check_guess":
+                accepted = payload.get("accepted")
+                if not isinstance(accepted, bool):
+                    raise ValueError("accepted must be a boolean")
+                game.checkGuess(player_id, accepted)
             elif command == "return_lobby":
                 game.returnPlayerToLobby(player_id)
             elif command == "leave_game":

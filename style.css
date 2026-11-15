@@ -209,10 +209,31 @@ body {
   max-width: 460px;
 }
 
-.menu-host-row {
-  border-top: 1.5px solid var(--border-soft);
-  margin-top: 1.15rem;
-  padding-top: 1.15rem;
+.menu-join-box {
+  background: var(--surface-alt);
+  border: 1.5px solid var(--border-soft);
+  border-radius: 8px;
+  padding: 0.9rem;
+}
+
+.menu-or {
+  align-items: center;
+  color: var(--ink-muted);
+  display: flex;
+  font-size: 0.8rem;
+  font-weight: 700;
+  gap: 0.75rem;
+  letter-spacing: 0.04em;
+  margin: 1rem 0;
+  text-transform: uppercase;
+}
+
+.menu-or::before,
+.menu-or::after {
+  background: var(--border-soft);
+  content: "";
+  flex: 1;
+  height: 1.5px;
 }
 
 .join-row {
@@ -496,12 +517,6 @@ body {
   overflow: hidden;
 }
 
-.ink-bar-track.ink-bar-sm {
-  border-color: var(--border-soft);
-  border-width: 1px;
-  height: 8px;
-  margin: 0.4rem 0 0.25rem;
-}
 
 .ink-bar-fill {
   background: var(--teal);
@@ -631,12 +646,6 @@ body {
   justify-content: space-between;
 }
 
-.ink-amount {
-  color: var(--ink-muted);
-  display: block;
-  font-family: var(--font-mono);
-  font-size: 0.75rem;
-}
 
 .vote-grid {
   display: grid;
@@ -686,6 +695,23 @@ body {
 
 #guess-error {
   margin: 0.75rem 0 0;
+}
+
+.guess-compare {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 0.75rem;
+}
+
+.guess-compare.guess-compare-single {
+  grid-template-columns: 1fr;
+}
+
+.guess-check-actions {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .result-outcome {
@@ -845,18 +871,21 @@ body {
 
   .game-stage[data-phase="vote"] #phase-action-card,
   .game-stage[data-phase="imposter_guess"] #phase-action-card,
+  .game-stage[data-phase="guess_check"] #phase-action-card,
   .game-stage[data-phase="results"] #phase-action-card {
     order: 1;
   }
 
   .game-stage[data-phase="vote"] .canvas-card,
   .game-stage[data-phase="imposter_guess"] .canvas-card,
+  .game-stage[data-phase="guess_check"] .canvas-card,
   .game-stage[data-phase="results"] .canvas-card {
     order: 2;
   }
 
   .game-stage[data-phase="vote"] #canvas,
   .game-stage[data-phase="imposter_guess"] #canvas,
+  .game-stage[data-phase="guess_check"] #canvas,
   .game-stage[data-phase="results"] #canvas {
     max-width: 300px;
   }
