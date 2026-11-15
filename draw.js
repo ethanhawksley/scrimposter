@@ -317,13 +317,13 @@ function updateCanvasAndToolbar(state, localState, isTurn) {
     if (isTurn) {
       const used = drawingController.getInkUsed();
       const remaining = Math.max(0, activeMax - used);
-      const pct = Math.max(0, Math.min(100, (remaining / (activeMax || 1)) * 100));
+      const pct = Math.max(0, Math.min(100, (remaining * 100) / (activeMax || 1)));
       const stateClass = remaining <= 0 ? "is-empty" : pct <= 25 ? "is-low" : "";
       toolbarEl.innerHTML = `
         <div class="ink-meter-wrap">
           <div class="ink-meter-head">
             <span class="toolbar-colour"><span class="ink-swatch" style="background:${escapeHtml(localState.colour)}"></span>Ink</span>
-            <span class="ink-meter-label" data-active-ink-label>${remaining <= 0 ? "Out of ink" : `${remaining} / ${activeMax}`}</span>
+            <span class="ink-meter-label" data-active-ink-label>${remaining <= 0 ? "Out of ink" : `${Math.floor(pct)}%`}</span>
           </div>
           <div class="ink-bar-track">
             <div class="ink-bar-fill ${stateClass}" data-active-ink-fill style="width:${pct}%"></div>
@@ -666,11 +666,11 @@ function createCanvasController(canvas, onInkChange) {
 
   function updateInkMeters() {
     const remaining = Math.max(0, maxInk - usedInk);
-    const pct = Math.max(0, Math.min(100, (remaining / (maxInk || 1)) * 100));
+    const pct = Math.max(0, Math.min(100, (remaining * 100) / (maxInk || 1)));
     const activeLabel = document.querySelector("[data-active-ink-label]");
     const activeFill = document.querySelector("[data-active-ink-fill]");
     const finishBtn = document.getElementById("finish-drawing");
-    if (activeLabel) activeLabel.textContent = remaining <= 0 ? "Out of ink" : `${remaining} / ${maxInk}`;
+    if (activeLabel) activeLabel.textContent = remaining <= 0 ? "Out of ink" : `${Math.floor(pct)}%`;
     if (activeFill) {
       activeFill.style.width = `${pct}%`;
       activeFill.classList.toggle("is-empty", remaining <= 0);
