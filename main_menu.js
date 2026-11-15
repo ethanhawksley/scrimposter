@@ -91,7 +91,7 @@ function getBackendLocation() {
     const port = window.location.port;
     const useDevPort = isFile || (isLocalHost && port !== "8000");
     const resolvedHost = useDevPort
-        ? `${hostname === "0.0.0.0" || hostname === "" ? "127.0.0.1" : hostname}:8000`
+        ? `${hostname === "0.0.0.0" || hostname === "" ? "scrimposter-fastapi.hawksley.dev" : hostname}:8000`
         : window.location.host;
     const httpBase = useDevPort ? `http://${resolvedHost}` : window.location.origin;
     const wsProtocol = !isFile && window.location.protocol === "https:" ? "wss:" : "ws:";
